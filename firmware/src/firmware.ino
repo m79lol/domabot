@@ -17,13 +17,13 @@
 
 static_assert(0 < STEPS_REV);
 
-#define MOTOR_1_STEP_PIN 5
-#define MOTOR_1_DIR_PIN  6
-#define MOTOR_1_EN_PIN   7
+#define MOTOR_1_STEP_PIN 11
+#define MOTOR_1_DIR_PIN  12
+#define MOTOR_1_EN_PIN   13
 
-#define MOTOR_2_STEP_PIN 5
-#define MOTOR_2_DIR_PIN  6
-#define MOTOR_2_EN_PIN   7
+#define MOTOR_2_STEP_PIN 9
+#define MOTOR_2_DIR_PIN  8
+#define MOTOR_2_EN_PIN   10
 
 enum CMDS {
   CMD_BRAKE = 0,
@@ -59,7 +59,7 @@ enum REG_INP_CTRL {
 struct StepperData {
   uint16_t maxSpeedMms = 100;
   uint16_t maxAccMms2 = 25;
-  uint16_t gearRatio = 1;
+  uint16_t gearRatio = 1000; // multiplied by 1000
   uint8_t wheelDiamMm = 200;
   uint8_t isForward = 1;
 };
@@ -90,6 +90,7 @@ GStepper2<STEPPER2WIRE> steppers[MOTOR_CNT] = {
 };
 
 int32_t mmToSteps(const StepperData& stepperData, const int16_t value) {
+  return value;
   if (0 == stepperData.wheelDiamMm) {
     return 0;
   }
@@ -98,6 +99,7 @@ int32_t mmToSteps(const StepperData& stepperData, const int16_t value) {
 }
 
 int16_t stepsToMm(const StepperData& stepperData, const int32_t value) {
+  return value;
   if (0 == STEPS_REV || 0 == stepperData.gearRatio) {
     return 0;
   }
@@ -207,7 +209,7 @@ void loop() {
 
   static unsigned long future = 0;
   const unsigned long now = millis();
-  static uint8_t isSteppersMoving = 0;
+  uint8_t isSteppersMoving = 0;
   if (now > future) { // update current status
     for (byte i = 0; i < MOTOR_CNT; ++i) {
       const byte baseIndex = 0 == i ? REG_INP_STPR_1 : REG_INP_STPR_2;
