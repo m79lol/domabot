@@ -1,0 +1,12 @@
+[submodule "firmware/lib/ArduinoModbus"]
+	path = firmware/lib/ArduinoModbus
+	url = https://github.com/arduino-libraries/ArduinoModbus
+[submodule "firmware/lib/ArduinoRS485"]
+	path = firmware/lib/ArduinoRS485
+	url = https://github.com/arduino-libraries/ArduinoRS485
+[submodule "firmware/lib/EEManager"]
+	path = firmware/lib/EEManager
+	url = https://github.com/GyverLibs/EEManager
+[submodule "firmware/lib/GyverStepper"]
+	path = firmware/lib/GyverStepper
+	url = https://github.com/GyverLibs/GyverStepper

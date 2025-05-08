@@ -151,7 +151,7 @@ int16_t stepsToMm(const StepperData& stepperData, const int32_t steps) {
     return 0;
   }
   return int16_t(
-    double(value) / double(STEPS_REV)
+    double(steps) / double(STEPS_REV)
     / (double(stepperData.gearRatio)/1000.0)
     * (double(stepperData.wheelDiamMm) * M_PI)
   );
