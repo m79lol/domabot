@@ -1,0 +1,37 @@
+@startuml
+!pragma teoz true
+box "PC"
+participant Modbus_Master as M
+end box
+box "Controller"
+participant Modbus_Slave as S
+participant Firmware as F
+end box
+M -> S : Set command params in Holding Registers
+M -> S : Set command code in Holding Register\non address 0
+M -> S : Set status coil\non address 1 to 0
+note left
+  Optional
+end note
+M -> S : Set command coil\non address 0 to 1
+& S -> F : Send command to execution
+F -> F : Execute command
+loop during command execution
+  loop by REG_HLD_RATE hz
+    F -> S : Update motors status & position
+  end loop
+  S -> M : Get Input Registers\nfor actual data
+  note left
+    Optional
+  end note
+end
+F -> F : Execute motors stop
+F -> S : Set status code of command\nto Input Register on address 1
+F -> S : Set command coil\non address 0 to 0
+F -> S : Set status coil\non address 1 to 1
+note right
+  Command execution finished
+end note
+S -> M : Get status coil\nand check it to 1
+S -> M : Get Input Register\non address 1 for status code
+@enduml

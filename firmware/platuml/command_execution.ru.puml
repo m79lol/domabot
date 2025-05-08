@@ -1,0 +1,37 @@
+@startuml
+!pragma teoz true
+box "ПК"
+participant Модбас_Клиент as M
+end box
+box "Контроллер"
+participant Модбас_Сервер as S
+participant Прошивка as F
+end box
+M -> S : Запись параметров команды в Holding Registers
+M -> S : Запись кода команды в Holding Register\nпо адресу 0
+M -> S : Сброс бита (coil) статуса \nпо адресу 1 в 0
+note left
+  Опционально
+end note
+M -> S : Установка бита (coil) выполнения\nпо адресу 0 в 1
+& S -> F : Отправка команды на выполнение
+F -> F : Выполнение команды
+loop во время выполнения команды
+  loop с частотой REG_HLD_RATE Гц
+    F -> S : Обновление статуса и позиции моторов
+  end loop
+  S -> M : Получение Input Registers\nс актуальными данными
+  note left
+    Опционально
+  end note
+end
+F -> F : Остановка моторов
+F -> S : Запись кода выполнения команды\nв Input Register по адресу 1
+F -> S : Сброс бита (coil) выполнения\nпо адресу 0 в 0
+F -> S : Установка бита (coil) статуса \nпо адресу 1 в 1
+note right
+  Выполнение команды завершено
+end note
+S -> M : Получение бита (coil) статуса \nпо адресу 1
+S -> M : Получение кода статуса выполнения\nиз Input Register по адресу 1
+@enduml
