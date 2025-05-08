@@ -17,25 +17,25 @@
 
 static_assert(0 < STEPS_REV);
 
-#define MOTOR_1_STEP_PIN 11
-#define MOTOR_1_DIR_PIN  12
-#define MOTOR_1_EN_PIN   13
+#define MOTOR_L_STEP_PIN 11
+#define MOTOR_L_DIR_PIN  12
+#define MOTOR_L_EN_PIN   13
 
-#define MOTOR_2_STEP_PIN 9
-#define MOTOR_2_DIR_PIN  8
-#define MOTOR_2_EN_PIN   10
+#define MOTOR_R_STEP_PIN 9
+#define MOTOR_R_DIR_PIN  8
+#define MOTOR_R_EN_PIN   10
 
 enum CMDS {
-  CMD_BRAKE = 0,
-  CMD_STOP = 1,
-  CMD_MOVE = 2,
+  CMD_BRAKE  = 0,
+  CMD_STOP   = 1,
+  CMD_MOVE   = 2,
   CMD_UPDATE = 3
 };
 enum STS {
   STS_OK = 0,
-  STS_ERR_MOVING = 1,
-  STS_ERR_CMD = 2,
-  STS_ERR_PARAMS = 3,
+  STS_ERR_MOVING  = 1,
+  STS_ERR_CMD     = 2,
+  STS_ERR_PARAMS  = 3,
   STS_ERR_UNKNOWN = 99
 };
 enum COIL_ADDR {
@@ -43,29 +43,32 @@ enum COIL_ADDR {
   COIL_NEW_STS = 1
 };
 enum REG_HLD {
-  REG_HLD_CMD = 0,
-  REG_HLD_TARG = 1,   // starts from
-  REG_HLD_RATE = 3,
-  REG_HLD_STPR_1 = 4, // starts from
-  REG_HLD_STPR_2 = 9  // starts from
+  REG_HLD_CMD    = 0,
+  REG_HLD_TARG_L = 1,   // starts from
+  REG_HLD_TARG_R = 2,
+  REG_HLD_RATE   = 3,
+  REG_HLD_SPD_L  = 4, // starts from
+  REG_HLD_SPD_R  = 9  // starts from
 };
 enum REG_INP_CTRL {
-  REG_HLD_VER = 0,
-  REG_INP_STS = 1,
-  REG_INP_STPR_1 = 2, // starts from
-  REG_INP_STPR_2 = 4  // starts from
+  REG_INP_VER    = 0,
+  REG_INP_STS    = 1,
+  REG_INP_STPR_L = 2, // starts from
+  REG_INP_POS_L  = 3,
+  REG_INP_STPR_R = 4,  // starts from
+  REG_INP_POS_R  = 5
 };
 
 struct StepperData {
-  uint16_t maxSpeedMms = 100;
-  uint16_t maxAccMms2 = 25;
-  uint16_t gearRatio = 1000; // multiplied by 1000
+  uint16_t maxSpeedMms = 177;
+  uint16_t maxAccMms2 = 55;
+  uint16_t gearRatio = uint16_t(85.0 / 24.0 * 1000.0); // Z-driven / Z-leading * precision // 3541
   uint8_t wheelDiamMm = 200;
-  uint8_t isForward = 1;
+  uint8_t isForward = 1; // must zero for L motor, index 0
 };
 
 struct ControllerData {
-  StepperData stepperData[MOTOR_CNT];
+  StepperData stepperData[MOTOR_CNT]; // left is 0, right is 1
   uint16_t updateRateHz = 50;
 };
 const ControllerData defaultControllerData;
@@ -77,33 +80,37 @@ bool isSteppersInited = false;
 GStepper2<STEPPER2WIRE> steppers[MOTOR_CNT] = {
   GStepper2<STEPPER2WIRE>(
     STEPS_REV, 
-    MOTOR_1_STEP_PIN,
-    MOTOR_1_DIR_PIN,
-    MOTOR_1_EN_PIN
+    MOTOR_L_STEP_PIN,
+    MOTOR_L_DIR_PIN,
+    MOTOR_L_EN_PIN
   ),
   GStepper2<STEPPER2WIRE>(
     STEPS_REV,
-    MOTOR_2_STEP_PIN,
-    MOTOR_2_DIR_PIN,
-    MOTOR_2_EN_PIN
+    MOTOR_R_STEP_PIN,
+    MOTOR_R_DIR_PIN,
+    MOTOR_R_EN_PIN
   )
 };
 
 int32_t mmToSteps(const StepperData& stepperData, const int16_t value) {
-  return value;
   if (0 == stepperData.wheelDiamMm) {
     return 0;
   }
-  return int32_t(double(value) / double(stepperData.wheelDiamMm) / M_PI * 180.0 
-      * (double(stepperData.gearRatio)/1000.0) * (double(STEPS_REV) / 360.0));
+  return int32_t(
+    double(value) / (double(stepperData.wheelDiamMm) * M_PI) 
+      * (double(stepperData.gearRatio)/1000.0) * double(STEPS_REV)
+  );
 }
 
 int16_t stepsToMm(const StepperData& stepperData, const int32_t value) {
-  return value;
   if (0 == STEPS_REV || 0 == stepperData.gearRatio) {
     return 0;
   }
-  return int16_t(double(value) / double(STEPS_REV) / (double(stepperData.gearRatio)/1000.0) / 180.0 * M_PI * double(stepperData.wheelDiamMm));
+  return int16_t(
+    double(value) / double(STEPS_REV)
+    / (double(stepperData.gearRatio)/1000.0) 
+    * (double(stepperData.wheelDiamMm) * M_PI)
+  );
 }
 
 void initSteppers() {
@@ -128,6 +135,7 @@ void initSteppers() {
 }
 
 void updateStatus(const STS status) {
+  ModbusRTUServer.holdingRegisterWrite(REG_HLD_CMD, 0);
   ModbusRTUServer.inputRegisterWrite(REG_INP_STS, status);
   ModbusRTUServer.coilWrite(COIL_NEW_STS, 1);
 }
@@ -151,7 +159,7 @@ uint8_t loadFromMemory() {
       stepperData.wheelDiamMm = defaultData.wheelDiamMm;
     }
 
-    const byte baseIndex = 0 == i ? REG_HLD_STPR_1 : REG_HLD_STPR_2;
+    const byte baseIndex = 0 == i ? REG_HLD_SPD_L : REG_HLD_SPD_R;
     ModbusRTUServer.holdingRegisterWrite(baseIndex + 0, stepperData.maxSpeedMms); // 4 9
     ModbusRTUServer.holdingRegisterWrite(baseIndex + 1, stepperData.maxAccMms2 ); // 5 10
     ModbusRTUServer.holdingRegisterWrite(baseIndex + 2, stepperData.gearRatio  ); // 6 11
@@ -171,6 +179,7 @@ void checkCriticalError(const bool check, const char* msg) {
 
 void setup() {
   Serial.begin(SERIAL_BAUD_RATE);
+  controllerData.stepperData[0].isForward = 0;
 
   checkCriticalError(
     ModbusRTUServer.begin(1, SERIAL_BAUD_RATE),
@@ -181,7 +190,7 @@ void setup() {
     "Failed to configure Coils"
   );
   checkCriticalError(
-    ModbusRTUServer.configureInputRegisters(REG_HLD_VER, 2+2+2),
+    ModbusRTUServer.configureInputRegisters(REG_INP_VER, 2+2+2),
     "Failed to configure Input Registers"
   );
   checkCriticalError(
@@ -190,13 +199,13 @@ void setup() {
   );
 
   switch (loadFromMemory()) {
-    case 0:
-    case 1:  { break; }
+    case 0:  { break; } // ok, loaded from memory
+    case 1:  { break; } // wrote default
     case 2:  { Serial.println("Memory: too large size"); while (1); }
     default: { Serial.println("Memory: unknown error");  while (1); }
   }
 
-  ModbusRTUServer.inputRegisterWrite(REG_HLD_VER, PROTOCOL_VERSION);
+  ModbusRTUServer.inputRegisterWrite(REG_INP_VER, PROTOCOL_VERSION);
   
   initSteppers();
   updateStatus(STS_OK);
@@ -212,7 +221,7 @@ void loop() {
   uint8_t isSteppersMoving = 0;
   if (now > future) { // update current status
     for (byte i = 0; i < MOTOR_CNT; ++i) {
-      const byte baseIndex = 0 == i ? REG_INP_STPR_1 : REG_INP_STPR_2;
+      const byte baseIndex = 0 == i ? REG_INP_STPR_L : REG_INP_STPR_R;
       const uint8_t stepperStatus =  steppers[i].getStatus();
       isSteppersMoving |= stepperStatus;
       ModbusRTUServer.inputRegisterWrite(baseIndex + 0, stepperStatus);
@@ -256,7 +265,7 @@ void loop() {
   switch (command) {
     case CMD_MOVE: {
       for (byte i = 0; i < MOTOR_CNT; ++i) {
-        const int16_t target = ModbusRTUServer.holdingRegisterRead(REG_HLD_TARG + i);
+        const int16_t target = ModbusRTUServer.holdingRegisterRead(REG_HLD_TARG_L + i);
         const StepperData& stepperData = controllerData.stepperData[i];
         steppers[i].setTarget(mmToSteps(stepperData, target));
       }
@@ -272,7 +281,7 @@ void loop() {
 
       for (byte i = 0; i < MOTOR_CNT; ++i) {
         StepperData& stepperData = controllerData.stepperData[i];
-        const byte baseIndex = 0 == i ? REG_HLD_STPR_1 : REG_HLD_STPR_2;
+        const byte baseIndex = 0 == i ? REG_HLD_SPD_L : REG_HLD_SPD_R;
         stepperData.maxSpeedMms = ModbusRTUServer.holdingRegisterRead(baseIndex + 0); // 4 9
         stepperData.maxAccMms2  = ModbusRTUServer.holdingRegisterRead(baseIndex + 1); // 5 10
         stepperData.gearRatio   = ModbusRTUServer.holdingRegisterRead(baseIndex + 2); // 6 11
