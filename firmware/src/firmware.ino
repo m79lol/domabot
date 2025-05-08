@@ -10,7 +10,7 @@
 #define FIRMWARE_VERSION 1
 #define PROTOCOL_VERSION 1
 
-#define SERIAL_BAUD_RATE 9600 
+#define SERIAL_BAUD_RATE 9600
 
 #define MOTOR_CNT 2
 #define STEPS_REV 1600 // must be above zero
@@ -25,12 +25,21 @@ static_assert(0 < STEPS_REV);
 #define MOTOR_R_DIR_PIN  8
 #define MOTOR_R_EN_PIN   10
 
+/**
+ * @brief Allowed commands in REG_HLD_CMD
+ *
+ */
 enum CMDS {
   CMD_BRAKE  = 0,
   CMD_STOP   = 1,
   CMD_MOVE   = 2,
   CMD_UPDATE = 3
 };
+
+/**
+ * @brief Command execution statuses in REG_INP_STS
+ *
+ */
 enum STS {
   STS_OK = 0,
   STS_ERR_MOVING  = 1,
@@ -38,10 +47,20 @@ enum STS {
   STS_ERR_PARAMS  = 3,
   STS_ERR_UNKNOWN = 99
 };
+
+/**
+ * @brief Modbus Coils addresses
+ *
+ */
 enum COIL_ADDR {
   COIL_NEW_CMD = 0,
   COIL_NEW_STS = 1
 };
+
+/**
+ * @brief Modbus Holding Registers addresses
+ *
+ */
 enum REG_HLD {
   REG_HLD_CMD    = 0,
   REG_HLD_TARG_L = 1,   // starts from
@@ -50,6 +69,11 @@ enum REG_HLD {
   REG_HLD_SPD_L  = 4, // starts from
   REG_HLD_SPD_R  = 9  // starts from
 };
+
+/**
+ * @brief Modbus Input Registers addresses
+ *
+ */
 enum REG_INP_CTRL {
   REG_INP_VER    = 0,
   REG_INP_STS    = 1,
@@ -59,6 +83,10 @@ enum REG_INP_CTRL {
   REG_INP_POS_R  = 5
 };
 
+/**
+ * @brief Stepper motor data stored in EEPROM memory
+ *
+ */
 struct StepperData {
   uint16_t maxSpeedMms = 177;
   uint16_t maxAccMms2 = 55;
@@ -67,19 +95,21 @@ struct StepperData {
   uint8_t isForward = 1; // must zero for L motor, index 0
 };
 
+/**
+ * @brief Controller data stored in EEPROM memory
+ *
+ */
 struct ControllerData {
   StepperData stepperData[MOTOR_CNT]; // left is 0, right is 1
-  uint16_t updateRateHz = 50;
+  uint16_t updateRateHz = 50; // for Modbus Input Registers
 };
 const ControllerData defaultControllerData;
 ControllerData controllerData;
 EEManager memory(controllerData);
 
-bool isSteppersInited = false;
-
 GStepper2<STEPPER2WIRE> steppers[MOTOR_CNT] = {
   GStepper2<STEPPER2WIRE>(
-    STEPS_REV, 
+    STEPS_REV,
     MOTOR_L_STEP_PIN,
     MOTOR_L_DIR_PIN,
     MOTOR_L_EN_PIN
@@ -92,28 +122,47 @@ GStepper2<STEPPER2WIRE> steppers[MOTOR_CNT] = {
   )
 };
 
-int32_t mmToSteps(const StepperData& stepperData, const int16_t value) {
+/**
+ * @brief Convert distance in mm to motor steps
+ *
+ * @param stepperData actual stepper
+ * @param distance in mm
+ * @return int32_t steps count
+ */
+int32_t mmToSteps(const StepperData& stepperData, const int16_t distance) {
   if (0 == stepperData.wheelDiamMm) {
     return 0;
   }
   return int32_t(
-    double(value) / (double(stepperData.wheelDiamMm) * M_PI) 
+    double(distance) / (double(stepperData.wheelDiamMm) * M_PI)
       * (double(stepperData.gearRatio)/1000.0) * double(STEPS_REV)
   );
 }
 
-int16_t stepsToMm(const StepperData& stepperData, const int32_t value) {
+/**
+ * @brief Convert motor steps to distance in mm
+ *
+ * @param stepperData actual stepper
+ * @param steps count
+ * @return int16_t distance
+ */
+int16_t stepsToMm(const StepperData& stepperData, const int32_t steps) {
   if (0 == STEPS_REV || 0 == stepperData.gearRatio) {
     return 0;
   }
   return int16_t(
     double(value) / double(STEPS_REV)
-    / (double(stepperData.gearRatio)/1000.0) 
+    / (double(stepperData.gearRatio)/1000.0)
     * (double(stepperData.wheelDiamMm) * M_PI)
   );
 }
 
+/**
+ * @brief Re-Init steppers by actual stepper data
+ *
+ */
 void initSteppers() {
+  static bool isSteppersInited = false;
   if (isSteppersInited) {
     for (byte i = 0; i < MOTOR_CNT; ++i) {
       steppers[i].brake();
@@ -134,12 +183,22 @@ void initSteppers() {
   ModbusRTUServer.holdingRegisterWrite(REG_HLD_CMD, 0);
 }
 
+/**
+ * @brief Update Modbus data by finished command
+ *
+ * @param status
+ */
 void updateStatus(const STS status) {
   ModbusRTUServer.holdingRegisterWrite(REG_HLD_CMD, 0);
   ModbusRTUServer.inputRegisterWrite(REG_INP_STS, status);
   ModbusRTUServer.coilWrite(COIL_NEW_STS, 1);
 }
 
+/**
+ * @brief Load controller data from EEPROM memory
+ *
+ * @return uint8_t exit code
+ */
 uint8_t loadFromMemory() {
   const uint8_t res = memory.begin(0, FIRMWARE_VERSION);
 
@@ -170,6 +229,12 @@ uint8_t loadFromMemory() {
   return res;
 }
 
+/**
+ * @brief Check critical condition and stops next execution if it's true
+ *
+ * @param check condition
+ * @param msg for print to Serial
+ */
 void checkCriticalError(const bool check, const char* msg) {
   if (!check) {
     Serial.println(msg);
@@ -177,6 +242,11 @@ void checkCriticalError(const bool check, const char* msg) {
   }
 }
 
+
+/**
+ * @brief main setup procedure, execute once by start
+ *
+ */
 void setup() {
   Serial.begin(SERIAL_BAUD_RATE);
   controllerData.stepperData[0].isForward = 0;
@@ -206,11 +276,15 @@ void setup() {
   }
 
   ModbusRTUServer.inputRegisterWrite(REG_INP_VER, PROTOCOL_VERSION);
-  
+
   initSteppers();
   updateStatus(STS_OK);
 }
 
+/**
+ * @brief main loop of controller, infinite
+ *
+ */
 void loop() {
   for (byte i = 0; i < MOTOR_CNT; ++i) {
     steppers[i].tick();
@@ -255,7 +329,7 @@ void loop() {
     return;
   }
 
-  if (isSteppersMoving) { 
+  if (isSteppersMoving) {
     // moving now, ignore any others commands
     updateStatus(STS_ERR_MOVING);
     return;
@@ -275,7 +349,7 @@ void loop() {
     case CMD_UPDATE: {
       STS status = STS_OK;
       controllerData.updateRateHz = ModbusRTUServer.holdingRegisterRead(REG_HLD_RATE);
-      if (0 == controllerData.updateRateHz) { 
+      if (0 == controllerData.updateRateHz) {
         status = STS_ERR_PARAMS;
       }
 
