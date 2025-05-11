@@ -13,13 +13,13 @@
 
 ## Аппаратная совместимость
 
-Прошивка совместима со всеми контроллерами серии Arduino, имеющими напряжение на DO выходах от 5 В до 24 В. Необходимо не менее 6 свободных DO выходов.
+Прошивка совместима со контроллерами серии Arduino, имеющими напряжение на DO выходах от 5 В до 24 В. Необходимо не менее 6 свободных DO выходов.
 
 Тестировалось на Arduino Mega 2560 rev 1.
 
 ## Используемые библиотеки
 
-Все используемые библиотеки устанавливаются через Tools -> Library Manager в Arduino IDE.
+Все используемые библиотеки устанавливаются через  в Arduino IDE.
 
 - [ArduinoModbus](https://github.com/arduino-libraries/ArduinoModbus): Реализация протокола ModbusRTU длф Arduino.
 - [ArduinoRS485](https://github.com/arduino-libraries/ArduinoRS485): Зависимость для ArduinoModbus.
@@ -35,6 +35,25 @@
 - `MOTOR_1_DIR_PIN` - номер пина для подключения сигнала DIRECTION - направление вращения 1го шагового драйвера;
 - `MOTOR_1_EN_PIN` - номер пина для подключения сигнала ENABLE - включение мотора 1го шагового драйвера;
 - аналогично `MOTOR_2_STEP_PIN`, `MOTOR_2_DIR_PIN`, `MOTOR_2_EN_PIN` для 2го драйвера.
+
+## Сборка
+
+#### 1. VSCode + PlatformIO
+Предпочтительный вариант, в редакторе [VSCode](https://code.visualstudio.com/) с установленным расширением [PlatformIO](https://docs.platformio.org/en/latest/integration/ide/pioide.html):
+- открыть вкладку **PIO Home** (значок муравья слева);
+- нажать кнопку **Open project**;
+- в открывшемся окне данную папку **firmware**;
+- внизу окна нажать значок галочки для компиляции, затем стрелки для загрузки прошивки в контроллер.
+
+Тестировать в Windows 10 и Linux (Ubuntu 22.04).
+
+#### 2. Arduino IDE
+В редакторе [Arduino IDE](https://www.arduino.cc/en/software/):
+- в **Tools** -> **Library Manager** установить библиотеки из списка Используемых библиотек;
+- открыть файл **src\src.ino**;
+- нажать кнопку Verify / Upload.
+
+Тестировать в Windows 10.
 
 ## Описание используемого протокола
 
