@@ -1,0 +1,2 @@
+bool is_success
+string error_message

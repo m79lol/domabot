@@ -1,0 +1,3 @@
+uint16 update_rate
+StepperSettings stepper_left
+StepperSettings stepper_right

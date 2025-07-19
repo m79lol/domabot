@@ -1,0 +1,5 @@
+uint16 max_speed
+uint16 max_acceleration
+uint16 gear_ratio
+uint8 wheel_diameter
+uint8 is_forward
