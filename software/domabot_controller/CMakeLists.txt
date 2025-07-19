@@ -9,9 +9,23 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_components REQUIRED)
+find_package(domabot_interfaces REQUIRED)
 
-add_executable(${PROJECT_NAME} src/${PROJECT_NAME}_node.cpp)
-ament_target_dependencies(${PROJECT_NAME} rclcpp)
+add_executable(${PROJECT_NAME}
+  src/${PROJECT_NAME}.cpp
+  src/Controller.cpp
+  src/Exception.cpp
+)
+ament_target_dependencies(${PROJECT_NAME} rclcpp domabot_interfaces)
+
+include_directories(
+  include
+  "/usr/include/modbus"
+)
+
+target_link_libraries(${PROJECT_NAME}
+  modbus
+)
 
 install(TARGETS
   ${PROJECT_NAME}

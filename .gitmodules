@@ -10,3 +10,6 @@
 [submodule "firmware/lib/GyverStepper"]
 	path = firmware/lib/GyverStepper
 	url = https://github.com/GyverLibs/GyverStepper
+[submodule "software/other/libmodbus"]
+	path = software/other/libmodbus
+	url = https://github.com/stephane/libmodbus.git
