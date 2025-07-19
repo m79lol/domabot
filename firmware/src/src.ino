@@ -31,6 +31,8 @@ static_assert(0 < STEPS_REV);
 #define DIR_BACKWARD_PIN    9999999
 #define DIR_LEFT_PIN        9999999
 
+#define EMERGENCY_STOP_PIN  9999999
+
 /**
  * @brief Allowed commands in REG_HLD_CMD
  *
@@ -55,6 +57,7 @@ enum STS {
   STS_ERR_PARAMS  = 3,
   STS_ERR_MODE    = 4,
   STS_ERR_DIR     = 5,
+  STS_EMRGENCY    = 6,
   STS_ERR_UNKNOWN = 99
 };
 
@@ -454,6 +457,30 @@ void processCommand() {
 }
 
 /**
+ * @brief Execute emergency stop motors
+ *
+ * @return bool return true if emergency pin raised
+ */
+bool processEmergency() {
+  static bool isWasEmergency = false;
+  const bool isEmergency = digitalRead(EMERGENCY_STOP_PIN);
+  if (isEmergency && !isWasEmergency) {
+    for (byte i = 0; i < MOTOR_CNT; ++i) {
+      steppers[i].stop();
+    }
+    isWasEmergency = true;
+
+    // drop active command
+    ModbusRTUServer.coilWrite(COIL_NEW_CMD, 0);
+    completeCommand(STS_EMRGENCY);
+  } else if (!isEmergency && isWasEmergency) {
+    isWasEmergency = false;
+    updateStatus(STS_OK);
+  }
+  return isEmergency;
+}
+
+/**
  * @brief Process all signals from wired remote control
  *
  */
@@ -573,6 +600,8 @@ void setup() {
   pinMode(DIR_RIGHT_PIN,       INPUT);
   pinMode(DIR_BACKWARD_PIN,    INPUT);
   pinMode(DIR_LEFT_PIN,        INPUT);
+
+  pinMode(EMERGENCY_STOP_PIN,  INPUT);
 }
 
 /**
@@ -581,10 +610,14 @@ void setup() {
  */
 void loop() {
   for (byte i = 0; i < MOTOR_CNT; ++i) {
-    steppers[i].tick();
+    steppers[i].tick(); // process motors
   }
 
   updateCurrentStatus();
+  if (processEmergency()) {
+    return; // there is emergency, stop processing
+  }
+
   processWires();
 
   switch (mode) {
