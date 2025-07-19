@@ -25,6 +25,12 @@ static_assert(0 < STEPS_REV);
 #define MOTOR_R_DIR_PIN  8
 #define MOTOR_R_EN_PIN   10
 
+#define WRD_MODE_SWITCH_PIN 9999999
+#define DIR_FORWARD_PIN     9999999
+#define DIR_RIGHT_PIN       9999999
+#define DIR_BACKWARD_PIN    9999999
+#define DIR_LEFT_PIN        9999999
+
 /**
  * @brief Allowed commands in REG_HLD_CMD
  *
@@ -33,7 +39,9 @@ enum CMDS {
   CMD_BRAKE  = 0,
   CMD_STOP   = 1,
   CMD_MOVE   = 2,
-  CMD_UPDATE = 3
+  CMD_UPDATE = 3,
+  CMD_MODE   = 4,
+  CMD_DIR    = 5
 };
 
 /**
@@ -45,6 +53,8 @@ enum STS {
   STS_ERR_MOVING  = 1,
   STS_ERR_CMD     = 2,
   STS_ERR_PARAMS  = 3,
+  STS_ERR_MODE    = 4,
+  STS_ERR_DIR     = 5,
   STS_ERR_UNKNOWN = 99
 };
 
@@ -53,8 +63,10 @@ enum STS {
  *
  */
 enum COIL_ADDR {
+  COIL_START   = 0,
   COIL_NEW_CMD = 0,
-  COIL_NEW_STS = 1
+  COIL_NEW_STS = 1,
+  COIL_END     = 2
 };
 
 /**
@@ -62,12 +74,16 @@ enum COIL_ADDR {
  *
  */
 enum REG_HLD {
+  REG_HLD_START  = 0,
   REG_HLD_CMD    = 0,
   REG_HLD_TARG_L = 1,   // starts from
   REG_HLD_TARG_R = 2,
   REG_HLD_RATE   = 3,
   REG_HLD_SPD_L  = 4, // starts from
-  REG_HLD_SPD_R  = 9  // starts from
+  REG_HLD_SPD_R  = 9, // starts from
+  REG_HLD_MODE   = 14,
+  REG_HLD_DIR    = 15,
+  REG_HLD_END    = 16 // 1+2+1+5*2+2
 };
 
 /**
@@ -75,20 +91,46 @@ enum REG_HLD {
  *
  */
 enum REG_INP_CTRL {
+  REG_INP_START  = 0,
   REG_INP_VER    = 0,
   REG_INP_STS    = 1,
   REG_INP_STPR_L = 2, // starts from
   REG_INP_POS_L  = 3,
   REG_INP_STPR_R = 4,  // starts from
-  REG_INP_POS_R  = 5
+  REG_INP_POS_R  = 5,
+  REG_INP_END    = 6
 };
+
+/**
+ * @brief Operation modes
+ *
+ */
+enum MODE {
+  MODE_TRG = 0,
+  MODE_DRCT = 1,
+  MODE_WRD = 2
+};
+MODE mode = MODE_TRG;
+
+/**
+ * @brief Directions in MANUAL mode
+ *
+ */
+enum DIR {
+  DIR_STOP     = 0,
+  DIR_FORWARD  = 1,
+  DIR_RIGHT    = 2, // clock wise
+  DIR_BACKWARD = 3,
+  DIR_LEFT     = 4 // counter clock wise
+};
+DIR direction = DIR_STOP;
 
 /**
  * @brief Stepper motor data stored in EEPROM memory
  *
  */
 struct StepperData {
-  uint16_t maxSpeedMms = 177;
+  uint16_t maxSpeedMms = 110;
   uint16_t maxAccMms2 = 55;
   uint16_t gearRatio = uint16_t(85.0 / 24.0 * 1000.0); // Z-driven / Z-leading * precision // 3541
   uint8_t wheelDiamMm = 200;
@@ -121,6 +163,8 @@ GStepper2<STEPPER2WIRE> steppers[MOTOR_CNT] = {
     MOTOR_R_EN_PIN
   )
 };
+
+uint8_t isSteppersMoving = 0;
 
 /**
  * @brief Convert distance in mm to motor steps
@@ -180,18 +224,29 @@ void initSteppers() {
   }
   isSteppersInited = true;
 
-  ModbusRTUServer.holdingRegisterWrite(REG_HLD_CMD, 0);
+  ModbusRTUServer.holdingRegisterWrite(REG_HLD_CMD, CMD_BRAKE);
+  ModbusRTUServer.holdingRegisterWrite(REG_HLD_MODE, mode);
+  ModbusRTUServer.holdingRegisterWrite(REG_HLD_DIR, direction);
 }
 
 /**
  * @brief Update Modbus data by finished command
  *
- * @param status
+ * @param status STS status to output in Modbus status register
  */
 void updateStatus(const STS status) {
-  ModbusRTUServer.holdingRegisterWrite(REG_HLD_CMD, 0);
   ModbusRTUServer.inputRegisterWrite(REG_INP_STS, status);
   ModbusRTUServer.coilWrite(COIL_NEW_STS, 1);
+}
+
+/**
+ * @brief Complete Modbus command execution by full stop & status output
+ *
+ * @param status STS status of command execution
+ */
+void completeCommand(const STS status) {
+  ModbusRTUServer.holdingRegisterWrite(REG_HLD_CMD, CMD_BRAKE);
+  updateStatus(status);
 }
 
 /**
@@ -230,82 +285,49 @@ uint8_t loadFromMemory() {
 }
 
 /**
- * @brief Check critical condition and stops next execution if it's true
- *
- * @param check condition
- * @param msg for print to Serial
- */
-void checkCriticalError(const bool check, const char* msg) {
-  if (!check) {
-    Serial.println(msg);
-    while (1);
-  }
-}
-
-
-/**
- * @brief main setup procedure, execute once by start
+ * @brief Detect command by Modbus & execute it
  *
  */
-void setup() {
-  Serial.begin(SERIAL_BAUD_RATE);
-  controllerData.stepperData[0].isForward = 0;
-
-  checkCriticalError(
-    ModbusRTUServer.begin(1, SERIAL_BAUD_RATE),
-    "Failed to start Modbus RTU Server!"
-  );
-  checkCriticalError(
-    ModbusRTUServer.configureCoils(COIL_NEW_CMD, 2),
-    "Failed to configure Coils"
-  );
-  checkCriticalError(
-    ModbusRTUServer.configureInputRegisters(REG_INP_VER, 2+2+2),
-    "Failed to configure Input Registers"
-  );
-  checkCriticalError(
-    ModbusRTUServer.configureHoldingRegisters(REG_HLD_CMD, (1+2+1+5*2)),
-    "Failed to configure Holding Registers"
-  );
-
-  switch (loadFromMemory()) {
-    case 0:  { break; } // ok, loaded from memory
-    case 1:  { break; } // wrote default
-    case 2:  { Serial.println("Memory: too large size"); while (1); }
-    default: { Serial.println("Memory: unknown error");  while (1); }
-  }
-
-  ModbusRTUServer.inputRegisterWrite(REG_INP_VER, PROTOCOL_VERSION);
-
-  initSteppers();
-  updateStatus(STS_OK);
-}
-
-/**
- * @brief main loop of controller, infinite
- *
- */
-void loop() {
+void processDirection() {
   for (byte i = 0; i < MOTOR_CNT; ++i) {
-    steppers[i].tick();
-  }
-
-  static unsigned long future = 0;
-  const unsigned long now = millis();
-  uint8_t isSteppersMoving = 0;
-  if (now > future) { // update current status
-    for (byte i = 0; i < MOTOR_CNT; ++i) {
-      const byte baseIndex = 0 == i ? REG_INP_STPR_L : REG_INP_STPR_R;
-      const uint8_t stepperStatus =  steppers[i].getStatus();
-      isSteppersMoving |= stepperStatus;
-      ModbusRTUServer.inputRegisterWrite(baseIndex + 0, stepperStatus);
-
-      int16_t currentMm = stepsToMm(controllerData.stepperData[i], steppers[i].getCurrent());
-      ModbusRTUServer.inputRegisterWrite(baseIndex + 1, currentMm);
+    const StepperData& stepperData = controllerData.stepperData[i];
+    switch (direction) {
+      case DIR_STOP: {
+        steppers[i].stop();
+        break;
+      }
+      case DIR_FORWARD: {
+        steppers[i].setSpeed(mmToSteps(stepperData, stepperData.maxSpeedMms));
+        break;
+      }
+      case DIR_RIGHT: {
+        steppers[i].setSpeed(
+          mmToSteps(stepperData, stepperData.maxSpeedMms)
+          * (i % 2 ? -1 : 1)
+        );
+        break;
+      }
+      case DIR_BACKWARD: {
+        steppers[i].setSpeed(-mmToSteps(stepperData, stepperData.maxSpeedMms));
+        break;
+      }
+      case DIR_LEFT: {
+        steppers[i].setSpeed(
+          mmToSteps(stepperData, stepperData.maxSpeedMms)
+          * (i % 2 ? 1 : -1)
+        );
+        break;
+      }
+      default: {}
     }
-    future = millis() + 1000 / controllerData.updateRateHz;
   }
+}
 
+/**
+ * @brief Detect command by Modbus & execute it
+ *
+ */
+void processCommand() {
   const int packetReceived = ModbusRTUServer.poll();
   if (!packetReceived) {
     return; // no new packets
@@ -314,24 +336,69 @@ void loop() {
   if (!commandCoil) {
     return; // no new commands
   }
-
   // new command received
   ModbusRTUServer.coilWrite(COIL_NEW_CMD, 0);
-  const long command = ModbusRTUServer.holdingRegisterRead(COIL_NEW_CMD);
-  if (CMD_MOVE > command) { // only STOP & BRAKE commands has priority during movement
-    for (byte i = 0; i < MOTOR_CNT; ++i) {
-      switch (command) {
-        case CMD_BRAKE: { steppers[i].brake(); break; }
-        case CMD_STOP:  { steppers[i].stop();  break; }
+  const long command = ModbusRTUServer.holdingRegisterRead(REG_HLD_CMD);
+  switch (command) { // priority commands
+    case CMD_BRAKE:
+    case CMD_STOP:
+    case CMD_MODE: {
+      for (byte i = 0; i < MOTOR_CNT; ++i) {
+        switch (command) {
+          case CMD_BRAKE: // fall down
+          case CMD_MODE: { steppers[i].brake(); break; }
+          case CMD_STOP: { steppers[i].stop();  break; }
+        }
       }
+
+      if (CMD_MODE != command) {
+        completeCommand(STS_OK);
+        return;
+      }
+
+      direction = DIR_STOP;
+      mode = (MODE)ModbusRTUServer.holdingRegisterRead(REG_HLD_MODE);
+      STS status = STS_OK;
+      switch (mode) {
+        case MODE_TRG:
+        case MODE_DRCT: { break; }
+        // case MODE_WRD: only by hardware switch
+        default: {
+          mode = MODE_TRG;
+          status = STS_ERR_MODE;
+          ModbusRTUServer.holdingRegisterWrite(REG_HLD_MODE, mode);
+          break;
+        }
+      }
+      ModbusRTUServer.holdingRegisterWrite(REG_HLD_DIR, DIR_STOP);
+      completeCommand(status);
+      return;
     }
-    updateStatus(STS_OK);
-    return;
+    case CMD_DIR: {
+      direction = (DIR)ModbusRTUServer.holdingRegisterRead(REG_HLD_DIR);
+      STS status = STS_OK;
+      switch (direction) {
+        case DIR_STOP:
+        case DIR_FORWARD:
+        case DIR_RIGHT:
+        case DIR_BACKWARD:
+        case DIR_LEFT: { break; }
+        default: {
+          direction = DIR_STOP;
+          status = STS_ERR_DIR;
+          ModbusRTUServer.holdingRegisterWrite(REG_HLD_DIR, DIR_STOP);
+          break;
+        }
+      }
+
+      processDirection();
+      updateStatus(status);
+    }
   }
 
   if (isSteppersMoving) {
     // moving now, ignore any others commands
-    updateStatus(STS_ERR_MOVING);
+    completeCommand(STS_ERR_MOVING);
     return;
   }
 
@@ -343,7 +410,7 @@ void loop() {
         const StepperData& stepperData = controllerData.stepperData[i];
         steppers[i].setTarget(mmToSteps(stepperData, target));
       }
-      updateStatus(STS_OK);
+      completeCommand(STS_OK);
       break;
     };
     case CMD_UPDATE: {
@@ -376,13 +443,161 @@ void loop() {
       loadFromMemory();
       initSteppers();
 
-      updateStatus(status);
+      completeCommand(status);
       break;
     };
     default: {
-      updateStatus(STS_ERR_CMD);
+      completeCommand(STS_ERR_CMD);
       break;
     }
+  }
+}
+
+/**
+ * @brief Process all signals from wired remote control
+ *
+ */
+void processWires() {
+  static MODE storedMode = mode;
+  if (digitalRead(WRD_MODE_SWITCH_PIN)) {
+    if (MODE_WRD != mode) {
+      for (byte i = 0; i < MOTOR_CNT; ++i) {
+        steppers[i].brake();
+      }
+      storedMode = mode;
+      mode = MODE_WRD;
+    }
+
+    if (digitalRead(DIR_FORWARD_PIN)) {
+      direction = DIR_FORWARD;
+    } else if (digitalRead(DIR_RIGHT_PIN)) {
+      direction = DIR_RIGHT;
+    } else if (digitalRead(DIR_BACKWARD_PIN)) {
+      direction = DIR_BACKWARD;
+    } else if (digitalRead(DIR_LEFT_PIN)) {
+      direction = DIR_LEFT;
+    } else {
+      direction = DIR_STOP;
+    }
+  } else {
+    if (MODE_WRD == mode) {
+      for (byte i = 0; i < MOTOR_CNT; ++i) {
+        steppers[i].brake();
+      }
+      mode = storedMode;
+    }
+  }
+}
+
+/**
+ * @brief Update steppers data in modbus registers
+ *
+ */
+void updateCurrentStatus() {
+  static unsigned long future = 0;
+  const unsigned long now = millis();
+  if (now < future) {
+    return;
+  }
+
+  future = millis() + 1000 / controllerData.updateRateHz;
+
+  // update current status
+  for (byte i = 0; i < MOTOR_CNT; ++i) {
+    const byte baseIndex = 0 == i ? REG_INP_STPR_L : REG_INP_STPR_R;
+    const uint8_t stepperStatus =  steppers[i].getStatus();
+    isSteppersMoving |= stepperStatus;
+    ModbusRTUServer.inputRegisterWrite(baseIndex + 0, stepperStatus);
+
+    const int16_t currentMm = stepsToMm(controllerData.stepperData[i], steppers[i].getCurrent());
+    ModbusRTUServer.inputRegisterWrite(baseIndex + 1, currentMm);
+  }
+}
+
+/**
+ * @brief Check critical condition and stops next execution if it's true
+ *
+ * @param check condition
+ * @param msg for print to Serial
+ */
+void checkCriticalError(const bool check, const char* msg) {
+  if (!check) {
+    Serial.println(msg);
+    while (1);
+  }
+}
+
+/**
+ * @brief Main setup procedure, execute once by start
+ *
+ */
+void setup() {
+  Serial.begin(SERIAL_BAUD_RATE);
+  controllerData.stepperData[0].isForward = 0;
+
+  checkCriticalError(
+    ModbusRTUServer.begin(1, SERIAL_BAUD_RATE),
+    "Failed to start Modbus RTU Server!"
+  );
+  checkCriticalError(
+    ModbusRTUServer.configureCoils(COIL_START, COIL_END),
+    "Failed to configure Coils"
+  );
+  checkCriticalError(
+    ModbusRTUServer.configureInputRegisters(REG_INP_START, REG_INP_END),
+    "Failed to configure Input Registers"
+  );
+  checkCriticalError(
+    ModbusRTUServer.configureHoldingRegisters(REG_HLD_START, REG_HLD_END),
+    "Failed to configure Holding Registers"
+  );
+
+  switch (loadFromMemory()) {
+    case 0:  { break; } // ok, loaded from memory
+    case 1:  { break; } // wrote default
+    case 2:  { Serial.println("Memory: too large size"); while (1); }
+    default: { Serial.println("Memory: unknown error");  while (1); }
+  }
+
+  mode = MODE_TRG;
+  direction = DIR_STOP;
+
+  ModbusRTUServer.inputRegisterWrite(REG_INP_VER, PROTOCOL_VERSION);
+
+  initSteppers();
+  updateStatus(STS_OK);
+
+  // init wires
+  pinMode(WRD_MODE_SWITCH_PIN, INPUT);
+  pinMode(DIR_FORWARD_PIN,     INPUT);
+  pinMode(DIR_RIGHT_PIN,       INPUT);
+  pinMode(DIR_BACKWARD_PIN,    INPUT);
+  pinMode(DIR_LEFT_PIN,        INPUT);
+}
+
+/**
+ * @brief Main loop of controller, infinite
+ *
+ */
+void loop() {
+  for (byte i = 0; i < MOTOR_CNT; ++i) {
+    steppers[i].tick();
+  }
+
+  updateCurrentStatus();
+  processWires();
+
+  switch (mode) {
+    case MODE_TRG:
+    case MODE_DRCT: {
+      processCommand();
+      break;
+    }
+    case MODE_WRD: {
+      processDirection();
+      break;
+    }
+    default: { break; }
   }
 
 }
