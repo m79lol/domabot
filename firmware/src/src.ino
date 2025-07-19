@@ -51,7 +51,7 @@ enum CMDS {
  *
  */
 enum STS {
-  STS_OK = 0,
+  STS_OK          = 0,
   STS_ERR_MOVING  = 1,
   STS_ERR_CMD     = 2,
   STS_ERR_PARAMS  = 3,
@@ -109,9 +109,9 @@ enum REG_INP_CTRL {
  *
  */
 enum MODE {
-  MODE_TRG = 0,
+  MODE_TRG  = 0,
   MODE_DRCT = 1,
-  MODE_WRD = 2
+  MODE_WRD  = 2
 };
 MODE mode = MODE_TRG;
 
