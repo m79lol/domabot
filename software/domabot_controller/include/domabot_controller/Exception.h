@@ -1,5 +1,5 @@
-#ifndef domabot_exception_h
-#define domabot_exception_h
+#ifndef Domabot_Exception_h
+#define Domabot_Exception_h
 
 #include <functional>
 #include <sstream>
@@ -8,43 +8,49 @@
 
 namespace Domabot {
 
-namespace Exception {
+class Exception {
+  protected:
+    template <typename Last>
+    static void createMsg(std::stringstream &stream, Last&& last) {
+      stream << std::forward<Last>(last);
+    }
 
-  std::runtime_error backTrack(
-    const std::string& file,
-    const int& line,
-    const std::string& func,
-    const std::exception& child,
-    const std::string& msg = ""
-  );
+    template <typename First, typename... Args>
+    static void createMsg(std::stringstream& stream, First&& first, Args&&... args) {
+      stream << std::forward<First>(first);
+      createMsg(stream, std::forward<Args>(args)...);
+    }
 
-  template <typename Last>
-  void create(std::stringstream &stream, Last&& last) {
-    stream << std::forward<Last>(last);
-  }
+  public:
+    Exception() = delete;
 
-  template <typename First, typename... Args>
-  void create(std::stringstream& stream, First&& first, Args&&... args) {
-    stream << std::forward<First>(first);
-    create(stream, std::forward<Args>(args)...);
-  }
+    static std::runtime_error backTrack(
+      const std::string& file,
+      const int& line,
+      const std::string& func,
+      const std::exception& child,
+      const std::string& msg = ""
+    );
 
-  template <typename... Args>
-  std::runtime_error create(Args&&... args) {
-    return std::runtime_error([&args...]() {
+    template <typename... Args>
+    static std::string createMsg(Args&&... args) {
       std::stringstream stream;
-      create(stream, std::forward<Args>(args)...);
+      createMsg(stream, std::forward<Args>(args)...);
       return stream.str();
-    }());
-  }
+    }
 
-  #define BacktrackMsg(child, msg) backTrack(__FILE__, __LINE__, __func__, child, msg)
-  #define Backtrack(child) backTrack(__FILE__, __LINE__, __func__, child)
+    template <typename... Args>
+    static std::runtime_error createError(Args&&... args) {
+      return std::runtime_error(createMsg(std::forward<Args>(args)...));
+    }
 
-} // Exception
+  #define BackTrackMsg(child, msg) backTrack(__FILE__, __LINE__, __func__, child, msg)
+  #define BackTrack(child) backTrack(__FILE__, __LINE__, __func__, child)
 
-#define defaultCatch catch (const std::exception& e) { throw Domabot::Exception::Backtrack(e); }
+}; // Exception
+
+#define defaultCatch catch (const std::exception& e) { throw Domabot::Exception::BackTrack(e); }
 
 } // Domabot
 
-#endif
+#endif // Domabot_Exception_h

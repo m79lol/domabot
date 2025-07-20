@@ -14,6 +14,7 @@ find_package(domabot_interfaces REQUIRED)
 add_executable(${PROJECT_NAME}
   src/${PROJECT_NAME}.cpp
   src/Controller.cpp
+  src/ControllerParams.cpp
   src/Exception.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} rclcpp domabot_interfaces)

@@ -1,5 +1,5 @@
-#ifndef domabot_controller_h
-#define domabot_controller_h
+#ifndef Domabot_Controller_h
+#define Domabot_Controller_h
 
 #include <domabot_interfaces/msg/controller_status.hpp>
 
@@ -12,21 +12,25 @@
 namespace Domabot {
 
 class Controller {
-  protected:
-    struct ParamNames {
-      static const std::string m_baudRate;
-      static const std::string m_controllerPath;
-      static const std::string m_dataBits;
-      static const std::string m_parity;
-      static const std::string m_stopBits;
-    };
+  public:
+    using CnstPtr = std::shared_ptr<const Controller>;
+    using Ptr = std::shared_ptr<Controller>;
 
+  protected:
     const rclcpp::Node::SharedPtr m_node = nullptr;
+    rclcpp::Logger m_logger;
     modbus_t* m_cntx = nullptr;
     mutable std::mutex m_mtx;
+    bool m_isConnected = false;
 
     rclcpp::Publisher<domabot_interfaces::msg::ControllerStatus>::SharedPtr m_statusPublisher;
     rclcpp::TimerBase::SharedPtr m_statusTimer;
+
+    void runModbusOperation(
+      std::function<bool (modbus_t*)> operation
+    );
+
+    void statusTimerCallback();
 
   public:
     Controller(
@@ -40,10 +44,10 @@ class Controller {
 
     virtual ~Controller() noexcept;
 
-    void statusTimerCallback();
+
 
 }; // Controller
 
 } // Domabot
 
-#endif
+#endif // Domabot_Controller_h

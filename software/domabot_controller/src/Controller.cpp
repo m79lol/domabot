@@ -1,36 +1,35 @@
 
 #include <domabot_controller/Controller.h>
+#include <domabot_controller/ControllerParams.h>
 #include <domabot_controller/Exception.h>
 
 namespace Domabot {
 
-const std::string Controller::ParamNames::m_baudRate = "baud_rate";
-const std::string Controller::ParamNames::m_controllerPath = "controller_path";
-const std::string Controller::ParamNames::m_dataBits = "data_bits";
-const std::string Controller::ParamNames::m_parity   = "parity";
-const std::string Controller::ParamNames::m_stopBits = "stop_bits";
-
 Controller::Controller(
   const rclcpp::Node::SharedPtr node
-) try : m_node(node) {
+) try : m_node(node), m_logger(node->get_logger()) {
 
-  m_node->declare_parameter(ParamNames::m_baudRate, 9600);
-  m_node->declare_parameter(ParamNames::m_controllerPath, "/dev/ttyUSB0");
-  m_node->declare_parameter(ParamNames::m_dataBits, 8);
-  m_node->declare_parameter(ParamNames::m_parity, 'N');
-  m_node->declare_parameter(ParamNames::m_stopBits, 1);
-
+  RCLCPP_DEBUG_STREAM(m_logger, "Modbus context create...");
   m_cntx = modbus_new_rtu(
-    m_node->get_parameter(ParamNames::m_controllerPath).as_string().c_str(),
-    m_node->get_parameter(ParamNames::m_baudRate).as_int(),
-    m_node->get_parameter(ParamNames::m_parity).as_string().at(0),
-    m_node->get_parameter(ParamNames::m_dataBits).as_int(),
-    m_node->get_parameter(ParamNames::m_stopBits).as_int()
+    ControllerParams::getPath    (m_node).c_str(),
+    ControllerParams::getBaudRate(m_node),
+    ControllerParams::getParity  (m_node),
+    ControllerParams::getDataBits(m_node),
+    ControllerParams::getStopBits(m_node)
   );
-
-  if (NULL == ctx) {
-    throw Exception::create("Unable to create the libmodbus context!");
+  if (NULL == m_cntx) {
+    throw Exception::createError("Unable to create the libmodbus context!");
   }
+  RCLCPP_DEBUG_STREAM(m_logger, "...ok");
+
+  const unsigned int slaveId = ControllerParams::getSlaveId(m_node);
+  RCLCPP_DEBUG_STREAM(m_logger, "Modbus set slave id " << slaveId <<  "...");
+  if (modbus_set_slave(m_cntx, slaveId) < 0) {
+    throw Exception::createError("Set modbus slave address error: ", modbus_strerror(errno));
+  }
+  RCLCPP_DEBUG_STREAM(m_logger, "...ok");
+
+  // TODO load rate from controller & set publisher
 
   m_statusPublisher =
     m_node->create_publisher<domabot_interfaces::msg::ControllerStatus>(
@@ -49,6 +48,44 @@ Controller::~Controller() noexcept {
     m_cntx = nullptr;
   }
 }
+
+void Controller::runModbusOperation(
+  std::function<bool (modbus_t*)> operation
+) try {
+  const std::lock_guard<std::mutex> lock(m_mtx);
+
+  unsigned int attempts = 2;
+  while(attempts--) {
+    try {
+      bool isNewConnect = false;
+      if (!m_isConnected) {
+        if (modbus_connect(m_cntx) < 0) {
+          throw Exception::createError("Could not establish link. Modbus error: ", modbus_strerror(errno));
+        }
+        m_isConnected = true;
+        isNewConnect = true;
+        RCLCPP_DEBUG_STREAM(m_logger, "Reconnected.");
+      }
+      if (!operation(m_cntx)) {
+        if (m_isConnected && !isNewConnect) {
+          RCLCPP_DEBUG_STREAM(m_logger, "Modbus operation failed. Modbus error: " << modbus_strerror(errno));
+          RCLCPP_DEBUG_STREAM(m_logger, "Trying to re-establish link...");
+          modbus_close(m_cntx);
+          m_isConnected = false;
+        }
+        throw Exception::createError("Modbus operation failed after link was re-established. Modbus error: ", modbus_strerror(errno));
+      }
+      break;
+    } catch (const std::exception& e) {
+      if (attempts) {
+        RCLCPP_WARN_STREAM(m_logger, e.what());
+        continue;
+      }
+      throw;
+    }
+  }
+  RCLCPP_DEBUG_STREAM(m_logger, "Modbus operation successful.");
+} defaultCatch
 
 void Controller::statusTimerCallback() try {
   auto msg = domabot_interfaces::msg::ControllerStatus();
