@@ -3,6 +3,41 @@
 
 namespace Domabot {
 
+Exception::Exception(const std::string& msg) : runtime_error(msg) {};
+
+Exception::Exception(const std::exception& e) : runtime_error(e.what()) {};
+
+bool Exception::isChildsEmpty() const noexcept {
+  return m_childs.empty();
+};
+
+void Exception::add(const std::exception& child) {
+  m_childs.emplace_back(child.what());
+};
+
+void Exception::add(const std::string& child) {
+  m_childs.emplace_back(child);
+};
+
+void Exception::checkSelf() {
+  if (isChildsEmpty()) {
+    return;
+  }
+  throw std::runtime_error(toString());
+};
+
+std::string Exception::toString() const {
+  std::string msg = what();
+  for (const auto& e : m_childs) {
+    msg += std::string("\n  ") + e;
+  }
+  return msg;
+};
+
+std::runtime_error Exception::toRuntimeError() const {
+  return std::runtime_error(toString());
+};
+
 std::runtime_error Exception::backTrack(
   const std::string& file,
   const int& line,

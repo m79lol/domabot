@@ -5,38 +5,36 @@
 
 namespace Domabot {
 
-Controller::Controller(
-  const rclcpp::Node::SharedPtr node
-) try : m_node(node), m_logger(node->get_logger()) {
+Controller::Controller() try : Node("domabot_controller") {
 
-  RCLCPP_DEBUG_STREAM(m_logger, "Modbus context create...");
+  RCLCPP_DEBUG_STREAM(get_logger(), "Modbus context create...");
   m_cntx = modbus_new_rtu(
-    ControllerParams::getPath    (m_node).c_str(),
-    ControllerParams::getBaudRate(m_node),
-    ControllerParams::getParity  (m_node),
-    ControllerParams::getDataBits(m_node),
-    ControllerParams::getStopBits(m_node)
+    ControllerParams::getPath    (*this).c_str(),
+    ControllerParams::getBaudRate(*this),
+    ControllerParams::getParity  (*this),
+    ControllerParams::getDataBits(*this),
+    ControllerParams::getStopBits(*this)
   );
   if (NULL == m_cntx) {
     throw Exception::createError("Unable to create the libmodbus context!");
   }
-  RCLCPP_DEBUG_STREAM(m_logger, "...ok");
+  RCLCPP_DEBUG_STREAM(get_logger(), "...ok");
 
-  const unsigned int slaveId = ControllerParams::getSlaveId(m_node);
-  RCLCPP_DEBUG_STREAM(m_logger, "Modbus set slave id " << slaveId <<  "...");
+  const unsigned int slaveId = ControllerParams::getSlaveId(*this);
+  RCLCPP_DEBUG_STREAM(get_logger(), "Modbus set slave id " << slaveId <<  "...");
   if (modbus_set_slave(m_cntx, slaveId) < 0) {
     throw Exception::createError("Set modbus slave address error: ", modbus_strerror(errno));
   }
-  RCLCPP_DEBUG_STREAM(m_logger, "...ok");
+  RCLCPP_DEBUG_STREAM(get_logger(), "...ok");
 
   // TODO load rate from controller & set publisher
 
   m_statusPublisher =
-    m_node->create_publisher<domabot_interfaces::msg::ControllerStatus>(
+    create_publisher<domabot_interfaces::msg::ControllerStatus>(
       "controller_status", 10);
 
   using namespace std::chrono_literals;
-  m_statusTimer = m_node->create_wall_timer(
+  m_statusTimer = create_wall_timer(
       500ms, std::bind(&Controller::statusTimerCallback, this));
 } defaultCatch
 
@@ -64,12 +62,12 @@ void Controller::runModbusOperation(
         }
         m_isConnected = true;
         isNewConnect = true;
-        RCLCPP_DEBUG_STREAM(m_logger, "Reconnected.");
+        RCLCPP_DEBUG_STREAM(get_logger(), "Reconnected.");
       }
       if (!operation(m_cntx)) {
         if (m_isConnected && !isNewConnect) {
-          RCLCPP_DEBUG_STREAM(m_logger, "Modbus operation failed. Modbus error: " << modbus_strerror(errno));
-          RCLCPP_DEBUG_STREAM(m_logger, "Trying to re-establish link...");
+          RCLCPP_DEBUG_STREAM(get_logger(), "Modbus operation failed. Modbus error: " << modbus_strerror(errno));
+          RCLCPP_DEBUG_STREAM(get_logger(), "Trying to re-establish link...");
           modbus_close(m_cntx);
           m_isConnected = false;
         }
@@ -78,13 +76,13 @@ void Controller::runModbusOperation(
       break;
     } catch (const std::exception& e) {
       if (attempts) {
-        RCLCPP_WARN_STREAM(m_logger, e.what());
+        RCLCPP_WARN_STREAM(get_logger(), e.what());
         continue;
       }
       throw;
     }
   }
-  RCLCPP_DEBUG_STREAM(m_logger, "Modbus operation successful.");
+  RCLCPP_DEBUG_STREAM(get_logger(), "Modbus operation successful.");
 } defaultCatch
 
 void Controller::statusTimerCallback() try {
@@ -92,7 +90,7 @@ void Controller::statusTimerCallback() try {
 
   m_statusPublisher->publish(msg);
 } catch (const std::exception& e) {
-  RCLCPP_INFO_STREAM(m_node->get_logger(), e.what());
+  RCLCPP_INFO_STREAM(get_logger(), e.what());
 }
 
 } // Domabot

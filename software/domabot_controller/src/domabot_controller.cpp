@@ -6,11 +6,7 @@
 
 int main(int argc, char * argv[]) try {
   rclcpp::init(argc, argv);
-
-  const rclcpp::Node::SharedPtr node = std::make_shared<rclcpp::Node>("domabot_controller");
-  Domabot::Controller controller(node);
-
-  rclcpp::spin(node);
+  rclcpp::spin(std::make_shared<Domabot::Controller>());
   rclcpp::shutdown();
   return 0;
 } catch (const std::exception& e) {

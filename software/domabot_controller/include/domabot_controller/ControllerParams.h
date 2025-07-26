@@ -33,12 +33,12 @@ class ControllerParams {
   public:
     ControllerParams() = delete;
 
-    static unsigned int getBaudRate(const rclcpp::Node::SharedPtr node);
-    static unsigned int getDataBits(const rclcpp::Node::SharedPtr node);
-    static char         getParity  (const rclcpp::Node::SharedPtr node);
-    static std::string  getPath    (const rclcpp::Node::SharedPtr node);
-    static unsigned int getStopBits(const rclcpp::Node::SharedPtr node);
-    static unsigned int getSlaveId (const rclcpp::Node::SharedPtr node);
+    static unsigned int getBaudRate(rclcpp::Node& node);
+    static unsigned int getDataBits(rclcpp::Node& node);
+    static char         getParity  (rclcpp::Node& node);
+    static std::string  getPath    (rclcpp::Node& node);
+    static unsigned int getStopBits(rclcpp::Node& node);
+    static unsigned int getSlaveId (rclcpp::Node& node);
 
 }; // ControllerParams
 

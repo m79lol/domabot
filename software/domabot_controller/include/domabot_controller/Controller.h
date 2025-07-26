@@ -11,14 +11,12 @@
 
 namespace Domabot {
 
-class Controller {
+class Controller : public rclcpp::Node {
   public:
     using CnstPtr = std::shared_ptr<const Controller>;
     using Ptr = std::shared_ptr<Controller>;
 
   protected:
-    const rclcpp::Node::SharedPtr m_node = nullptr;
-    rclcpp::Logger m_logger;
     modbus_t* m_cntx = nullptr;
     mutable std::mutex m_mtx;
     bool m_isConnected = false;
@@ -32,10 +30,10 @@ class Controller {
 
     void statusTimerCallback();
 
+    void getControllerData();
+
   public:
-    Controller(
-      const rclcpp::Node::SharedPtr node
-    );
+    Controller();
 
     Controller(const Controller& other)            = delete;
     Controller(Controller&& other)                 = delete;

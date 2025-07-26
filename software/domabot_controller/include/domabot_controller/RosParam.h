@@ -13,13 +13,13 @@ template<typename T> class RosParam {
     using Ptr = std::shared_ptr<RosParam>;
 
   protected:
-    const rclcpp::Node::SharedPtr m_node;
+    rclcpp::Node& m_node;
     const std::string m_name;
     const std::function<T (const rclcpp::Parameter&)> m_validate;
 
   public:
     RosParam(
-      const rclcpp::Node::SharedPtr node,
+      rclcpp::Node& node,
       const std::string name,
       const T defaultValue,
       const std::function<T (const rclcpp::Parameter&)> validate,
@@ -28,13 +28,13 @@ template<typename T> class RosParam {
       auto descriptor = rcl_interfaces::msg::ParameterDescriptor{};
       descriptor.description = description;
 
-      m_node->declare_parameter(m_name, defaultValue, descriptor);
+      m_node.declare_parameter(m_name, defaultValue, descriptor);
     } defaultCatch;
 
     virtual ~RosParam() = default;
 
     T getValue() const try {
-      const auto parameter = m_node->get_parameter(m_name);
+      const auto parameter = m_node.get_parameter(m_name);
       try {
         return m_validate(parameter);
       } catch (const std::exception& e) {

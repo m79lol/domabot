@@ -2,14 +2,19 @@
 #define Domabot_Exception_h
 
 #include <functional>
+#include <list>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace Domabot {
 
-class Exception {
+class Exception : public std::runtime_error {
   protected:
+    using Childs =  std::list<std::string>;
+
+    Childs m_childs = {};
+
     template <typename Last>
     static void createMsg(std::stringstream &stream, Last&& last) {
       stream << std::forward<Last>(last);
@@ -23,6 +28,25 @@ class Exception {
 
   public:
     Exception() = delete;
+
+    Exception(const std::string& msg = "");
+    Exception(const std::exception& e);
+
+    Exception(const Exception&) = default;
+    Exception(Exception&&) = default;
+    Exception& operator=(const Exception&) = default;
+    Exception& operator=(Exception&&) = default;
+
+    virtual ~Exception() = default;
+
+    bool isChildsEmpty() const noexcept;
+    void add(const std::exception& child);
+    void add(const std::string& child);
+
+    void checkSelf();
+
+    std::string toString() const;
+    std::runtime_error toRuntimeError() const;
 
     static std::runtime_error backTrack(
       const std::string& file,

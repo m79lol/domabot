@@ -12,7 +12,7 @@ std::string ControllerParams::checkIsEmpty(const rclcpp::Parameter& parameter) t
   return str;
 } defaultCatch
 
-unsigned int ControllerParams::getBaudRate(const rclcpp::Node::SharedPtr node) try {
+unsigned int ControllerParams::getBaudRate(rclcpp::Node& node) try {
   return RosParam<int>(
       node
     , "baud_rate"
@@ -26,7 +26,7 @@ unsigned int ControllerParams::getBaudRate(const rclcpp::Node::SharedPtr node) t
   ).getValue();
 } defaultCatch
 
-unsigned int ControllerParams::getDataBits(const rclcpp::Node::SharedPtr node) try {
+unsigned int ControllerParams::getDataBits(rclcpp::Node& node) try {
   return RosParam<int>(
       node
     , "data_bits"
@@ -39,7 +39,7 @@ unsigned int ControllerParams::getDataBits(const rclcpp::Node::SharedPtr node) t
   ).getValue();
 } defaultCatch
 
-char ControllerParams::getParity(const rclcpp::Node::SharedPtr node) try {
+char ControllerParams::getParity(rclcpp::Node& node) try {
   return RosParam<char>(
       node
     , "parity"
@@ -52,7 +52,7 @@ char ControllerParams::getParity(const rclcpp::Node::SharedPtr node) try {
   ).getValue();
 } defaultCatch
 
-std::string ControllerParams::getPath(const rclcpp::Node::SharedPtr node) try {
+std::string ControllerParams::getPath(rclcpp::Node& node) try {
   return RosParam<std::string>(
       node
     , "path"
@@ -64,7 +64,7 @@ std::string ControllerParams::getPath(const rclcpp::Node::SharedPtr node) try {
   ).getValue();
 } defaultCatch
 
-unsigned int ControllerParams::getStopBits(const rclcpp::Node::SharedPtr node) try {
+unsigned int ControllerParams::getStopBits(rclcpp::Node& node) try {
   return RosParam<char>(
       node
     , "stop_bits"
@@ -77,7 +77,7 @@ unsigned int ControllerParams::getStopBits(const rclcpp::Node::SharedPtr node) t
   ).getValue();
 } defaultCatch
 
-unsigned int ControllerParams::getSlaveId(const rclcpp::Node::SharedPtr node) try {
+unsigned int ControllerParams::getSlaveId(rclcpp::Node& node) try {
   return RosParam<char>(
       node
     , "modbus_slave_id"
