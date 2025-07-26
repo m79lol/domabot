@@ -21,6 +21,7 @@ ament_target_dependencies(${PROJECT_NAME} rclcpp domabot_interfaces)
 
 include_directories(
   include
+  "../../firmware/include"
   "/usr/include/modbus"
 )
 

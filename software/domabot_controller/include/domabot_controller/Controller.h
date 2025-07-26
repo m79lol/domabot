@@ -1,7 +1,9 @@
 #ifndef Domabot_Controller_h
 #define Domabot_Controller_h
 
-#include <domabot_interfaces/msg/controller_status.hpp>
+#include <domabot_interfaces/msg/status.hpp>
+
+#include <domabot_firmware/firmware_data_types.h>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -21,12 +23,21 @@ class Controller : public rclcpp::Node {
     mutable std::mutex m_mtx;
     bool m_isConnected = false;
 
-    rclcpp::Publisher<domabot_interfaces::msg::ControllerStatus>::SharedPtr m_statusPublisher;
+    rclcpp::Publisher<domabot_interfaces::msg::Status>::SharedPtr m_statusPublisher;
     rclcpp::TimerBase::SharedPtr m_statusTimer;
 
     void runModbusOperation(
       std::function<bool (modbus_t*)> operation
     );
+
+    // modbus operations
+    bool readCoil(const COIL address);
+    void writeCoil(const COIL address, const bool value);
+    uint16_t readInputRegister(const REG_INP address);
+    std::vector<uint16_t> readInputRegisters(const REG_INP address, const std::size_t cnt);
+    uint16_t readHoldingRegister(const REG_HLD address);
+    void writeHoldingRegister(const REG_HLD address, const uint16_t value);
+
 
     void statusTimerCallback();
 

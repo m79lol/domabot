@@ -1,7 +1,6 @@
 #ifndef firmware_data_types_h
 #define firmware_data_types_h
 
-#define FIRMWARE_VERSION 1
 #define PROTOCOL_VERSION 1
 
 #define MOTOR_CNT 2
@@ -78,9 +77,9 @@ enum class REG_INP : uint8_t {
   START  = 0,
   VER    = 0,
   STS    = 1,
-  STPR_L = 2, // starts from
+  STPR_L = 2,
   POS_L  = 3,
-  STPR_R = 4,  // starts from
+  STPR_R = 4,
   POS_R  = 5,
   END    = 6
 };

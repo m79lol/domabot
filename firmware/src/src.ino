@@ -1,5 +1,5 @@
 
-#include "firmware_data_types.h"
+#include "domabot_firmware/firmware_data_types.h"
 
 #include <ArduinoRS485.h>
 #include <ArduinoModbus.h>
@@ -9,6 +9,8 @@
 #include <GyverStepper2.h>
 
 #include <math.h>
+
+#define FIRMWARE_VERSION 1
 
 #define SERIAL_BAUD_RATE 9600
 
