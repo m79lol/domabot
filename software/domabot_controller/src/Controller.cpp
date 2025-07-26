@@ -35,14 +35,47 @@ Controller::Controller() try : Node("domabot_controller") {
       , ". Obtained: ", protocolVersion);
   }
 
-  m_statusPublisher =
-    create_publisher<domabot_interfaces::msg::Status>(
-      "status", 1);
+  m_pubStatus = create_publisher<domabot_interfaces::msg::Status>("status", 1);
+
+  m_srvBrake = create_service<domabot_interfaces::srv::Brake>(
+    "brake",
+    std::bind(
+      &Controller::brakeSrvCallback, this,
+      std::placeholders::_1, std::placeholders::_2));
+  m_srvGetData = create_service<domabot_interfaces::srv::GetData>(
+    "get_controller",
+    std::bind(
+      &Controller::getDataSrvCallback, this,
+      std::placeholders::_1, std::placeholders::_2));
+  m_srvMove = create_service<domabot_interfaces::srv::Move>(
+    "move",
+    std::bind(
+      &Controller::moveSrvCallback, this,
+      std::placeholders::_1, std::placeholders::_2));
+  m_srvSetDirection = create_service<domabot_interfaces::srv::SetDirection>(
+    "set_direction",
+    std::bind(
+      &Controller::setDirectionSrvCallback, this,
+      std::placeholders::_1, std::placeholders::_2));
+  m_srvSetMode = create_service<domabot_interfaces::srv::SetMode>(
+    "set_mode",
+    std::bind(
+      &Controller::setModeSrvCallback, this,
+      std::placeholders::_1, std::placeholders::_2));
+  m_srvSetSettings = create_service<domabot_interfaces::srv::SetSettings>(
+    "set_settings",
+    std::bind(
+      &Controller::setSettingsSrvCallback, this,
+      std::placeholders::_1, std::placeholders::_2));
+  m_srvStop = create_service<domabot_interfaces::srv::Stop>(
+    "stop",
+    std::bind(
+      &Controller::stopSrvCallback, this,
+      std::placeholders::_1, std::placeholders::_2));
 
   const auto pubRate = readHoldingRegister(REG_HLD::RATE);
   const std::chrono::milliseconds pubPeriod(1000 / pubRate);
 
-  using namespace std::chrono_literals;
   m_statusTimer = create_wall_timer(
       pubPeriod, std::bind(&Controller::statusTimerCallback, this));
 } defaultCatch
@@ -147,6 +180,56 @@ void Controller::writeHoldingRegister(
   });
 } defaultCatch
 
+void Controller::brakeSrvCallback(
+    const std::shared_ptr<domabot_interfaces::srv::Brake::Request> req
+  , std::shared_ptr<domabot_interfaces::srv::Brake::Response> res
+) try {
+
+} defaultCatch
+
+void Controller::getDataSrvCallback(
+    const std::shared_ptr<domabot_interfaces::srv::GetData::Request> req
+  , std::shared_ptr<domabot_interfaces::srv::GetData::Response> res
+) try {
+
+} defaultCatch
+
+void Controller::moveSrvCallback(
+    const std::shared_ptr<domabot_interfaces::srv::Move::Request> req
+  , std::shared_ptr<domabot_interfaces::srv::Move::Response> res
+) try {
+
+} defaultCatch
+
+void Controller::setDirectionSrvCallback(
+    const std::shared_ptr<domabot_interfaces::srv::SetDirection::Request> req
+  , std::shared_ptr<domabot_interfaces::srv::SetDirection::Response> res
+) try {
+
+} defaultCatch
+
+void Controller::setModeSrvCallback(
+    const std::shared_ptr<domabot_interfaces::srv::SetMode::Request> req
+  , std::shared_ptr<domabot_interfaces::srv::SetMode::Response> res
+) try {
+
+} defaultCatch
+
+void Controller::setSettingsSrvCallback(
+    const std::shared_ptr<domabot_interfaces::srv::SetSettings::Request> req
+  , std::shared_ptr<domabot_interfaces::srv::SetSettings::Response> res
+) try {
+
+} defaultCatch
+
+void Controller::stopSrvCallback(
+    const std::shared_ptr<domabot_interfaces::srv::Stop::Request> req
+  , std::shared_ptr<domabot_interfaces::srv::Stop::Response> res
+) try {
+
+} defaultCatch
+
+
 void Controller::statusTimerCallback() try {
   const auto inputRegs = readInputRegisters(
     REG_INP::STS, (size_t)REG_INP::END - (size_t)REG_INP::STS);
@@ -158,7 +241,7 @@ void Controller::statusTimerCallback() try {
   msg.stepper_right.status   = inputRegs[3];
   msg.stepper_right.position = inputRegs[4];
 
-  m_statusPublisher->publish(msg);
+  m_pubStatus->publish(msg);
 } catch (const std::exception& e) {
   RCLCPP_INFO_STREAM(get_logger(), e.what());
 }
