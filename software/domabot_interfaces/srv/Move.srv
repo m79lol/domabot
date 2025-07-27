@@ -2,4 +2,3 @@ int16 target_position_left
 int16 target_position_right
 ---
 ResponseData response_data
-uint8 controller_status

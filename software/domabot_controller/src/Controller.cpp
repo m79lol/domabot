@@ -152,7 +152,8 @@ void Controller::writeCoils(
     coils[i] = values[i] ? 1 : 0;
   }
   runModbusOperation([&startAddress, &coils](modbus_t* cntx){
-    return (int) coils.size() == modbus_write_bits(cntx, (int) startAddress, (int) coils.size(), coils.data());
+    return (int) coils.size() == modbus_write_bits(
+      cntx, (int) startAddress, (int) coils.size(), coils.data());
   });
 } defaultCatch
 
@@ -166,16 +167,22 @@ std::vector<uint16_t> Controller::readInputRegisters(
   std::vector<uint16_t> result(cnt, 0);
   runModbusOperation([&result, &startAddress, &cnt](modbus_t* cntx){
     return (int) cnt == modbus_read_input_registers(
-                    cntx, (int) startAddress, cnt, result.data());
+      cntx, (int) startAddress, (int) cnt, result.data());
   });
   return result;
 } defaultCatch
 
 uint16_t Controller::readHoldingRegister(const REG_HLD address) try {
-  uint16_t result{};
-  runModbusOperation([&result, &address](modbus_t* cntx){
-    constexpr int cnt = 1;
-    return cnt == modbus_read_registers(cntx, (int) address, cnt, &result);
+  return readHoldingRegisters(address, 1).at(0);
+} defaultCatch
+
+std::vector<uint16_t> Controller::readHoldingRegisters(
+  const REG_HLD startAddress, const std::size_t cnt
+) try {
+  std::vector<uint16_t> result(cnt, 0);
+  runModbusOperation([&result, &startAddress, &cnt](modbus_t* cntx){
+    return (int) cnt == modbus_read_registers(
+      cntx, (int) startAddress, (int) cnt, result.data());
   });
   return result;
 } defaultCatch
@@ -183,9 +190,15 @@ uint16_t Controller::readHoldingRegister(const REG_HLD address) try {
 void Controller::writeHoldingRegister(
   const REG_HLD address, const uint16_t value
 ) try {
-  runModbusOperation([&address, &value](modbus_t* cntx){
-    constexpr int cnt = 1;
-    return cnt == modbus_write_registers(cntx, (int) address, cnt, &value);
+  writeHoldingRegisters(address, {value});
+} defaultCatch
+
+void Controller::writeHoldingRegisters(
+  const REG_HLD startAddress, const std::vector<uint16_t> values
+) try {
+  runModbusOperation([&startAddress, &values](modbus_t* cntx){
+    return (int) values.size() == modbus_write_registers(
+      cntx, (int) startAddress, (int) values.size(), values.data());
   });
 } defaultCatch
 
@@ -253,7 +266,18 @@ void Controller::checkMode(const MODE mode) try {
   }
 } defaultCatch
 
-STS Controller::runCommand(const CMD cmd) try {
+void Controller::checkDirection(const DIR direction) try {
+  switch (direction) {
+    case DIR::BACKWARD: { [[fallthrough]]; }
+    case DIR::FORWARD:  { [[fallthrough]]; }
+    case DIR::LEFT:     { [[fallthrough]]; }
+    case DIR::RIGHT:    { [[fallthrough]]; }
+    case DIR::STOP:     { break; }
+    default: { throw Exception::createError("Unknown direction!"); }
+  }
+} defaultCatch
+
+void Controller::runCommand(const CMD cmd) try {
   RCLCPP_INFO_STREAM(get_logger(), "Start running command: " << getCommandName(cmd));
 
   writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
@@ -284,8 +308,7 @@ STS Controller::runCommand(const CMD cmd) try {
 
   const STS status = (STS)readInputRegister(REG_INP::STS);
   writeCoil(COIL::NEW_STS, false);
-
-  return status;
+  checkStatus(status);
 } defaultCatch
 
 void Controller::brakeSrvCallback(
@@ -298,31 +321,55 @@ void Controller::brakeSrvCallback(
 }
 
 void Controller::getDataSrvCallback(
-    const std::shared_ptr<domabot_interfaces::srv::GetData::Request> req
+    [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::GetData::Request> req
   , std::shared_ptr<domabot_interfaces::srv::GetData::Response> res
 ) try {
+  const auto inputRegs = readInputRegisters(
+    REG_INP::STS, (uint8_t) REG_INP::END - (uint8_t) REG_INP::STS);
+  const auto holdingRegs = readHoldingRegisters(
+    REG_HLD::START, (size_t) REG_HLD::END);
 
-} defaultCatch
+  // res->status.status =
+  // res->command.command =
+  // res->mode.mode =
+  // res->direction.direction =
+
+  res->response_data.is_success = true;
+  res->response_data.error_message = "";
+
+} catch (const std::exception& e) {
+  processExceptionCommand<domabot_interfaces::srv::GetData>(res, e);
+}
 
 void Controller::moveSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::Move::Request> req
   , std::shared_ptr<domabot_interfaces::srv::Move::Response> res
 ) try {
+  writeHoldingRegisters(
+      REG_HLD::TARG_L
+    , { (uint16_t) req->target_position_left, (uint16_t) req->target_position_right });
 
-} defaultCatch
+  processRequestCommand<domabot_interfaces::srv::Move>(res, CMD::MOVE);
+} catch (const std::exception& e) {
+  processExceptionCommand<domabot_interfaces::srv::Move>(res, e);
+}
 
 void Controller::setDirectionSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::SetDirection::Request> req
   , std::shared_ptr<domabot_interfaces::srv::SetDirection::Response> res
 ) try {
+  checkDirection((DIR) req->direction.direction);
+  writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
 
-} defaultCatch
+  processRequestCommand<domabot_interfaces::srv::SetDirection>(res, CMD::MODE);
+} catch (const std::exception& e) {
+  processExceptionCommand<domabot_interfaces::srv::SetDirection>(res, e);
+}
 
 void Controller::setModeSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::SetMode::Request> req
   , std::shared_ptr<domabot_interfaces::srv::SetMode::Response> res
 ) try {
-  res->controller_status = (uint8_t) STS::ERR_UNKNOWN;
   checkMode((MODE) req->mode.mode);
   writeHoldingRegister(REG_HLD::MODE, req->mode.mode);
 
@@ -336,7 +383,9 @@ void Controller::setSettingsSrvCallback(
   , std::shared_ptr<domabot_interfaces::srv::SetSettings::Response> res
 ) try {
 
-} defaultCatch
+}  catch (const std::exception& e) {
+  processExceptionCommand<domabot_interfaces::srv::SetSettings>(res, e);
+}
 
 void Controller::stopSrvCallback(
     [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::Stop::Request> req

@@ -54,27 +54,34 @@ class Controller : public rclcpp::Node {
     std::vector<uint16_t> readInputRegisters(
       const REG_INP startAddress, const std::size_t cnt);
     uint16_t readHoldingRegister(const REG_HLD address);
+    std::vector<uint16_t> readHoldingRegisters(
+      const REG_HLD startAddress, const std::size_t cnt);
     void writeHoldingRegister(const REG_HLD address, const uint16_t value);
+    void writeHoldingRegisters(
+      const REG_HLD startAddress, const std::vector<uint16_t> values);
 
     static const std::string& getCommandName(const CMD command);
     static const std::string& getStatusName(const STS status);
 
     void checkStatus(const STS status) const;
     static void checkMode(const MODE mode);
+    static void checkDirection(const DIR direction);
 
-    STS runCommand(const CMD cmd);
+    void runCommand(const CMD cmd);
 
     template <typename Service> void processRequestCommand(
       std::shared_ptr<typename Service::Response> res,
       const CMD command
     ) try {
-      res->controller_status = (uint8_t) STS::ERR_UNKNOWN;
-      const STS status = runCommand(command);
-      res->controller_status = (uint8_t) status;
-      checkStatus(status);
+      runCommand(command);
       res->response_data.is_success = true;
       res->response_data.error_message = "";
-    } defaultCatch
+    } catch (const std::exception& e) {
+      res->response_data.is_success = false;
+      const auto msg = Exception::BackTrack(e).what();
+      res->response_data.error_message = msg;
+      RCLCPP_ERROR_STREAM(get_logger(), msg);
+    }
 
     template <typename Service> void processExceptionCommand(
       std::shared_ptr<typename Service::Response> res,
@@ -87,7 +94,7 @@ class Controller : public rclcpp::Node {
     }
 
     void brakeSrvCallback(
-        [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::Brake::Request> req
+        const std::shared_ptr<domabot_interfaces::srv::Brake::Request> req
       , std::shared_ptr<domabot_interfaces::srv::Brake::Response> res);
     void getDataSrvCallback(
         const std::shared_ptr<domabot_interfaces::srv::GetData::Request> req
@@ -105,7 +112,7 @@ class Controller : public rclcpp::Node {
         const std::shared_ptr<domabot_interfaces::srv::SetSettings::Request> req
       , std::shared_ptr<domabot_interfaces::srv::SetSettings::Response> res);
     void stopSrvCallback(
-        [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::Stop::Request> req
+        const std::shared_ptr<domabot_interfaces::srv::Stop::Request> req
       , std::shared_ptr<domabot_interfaces::srv::Stop::Response> res);
 
     void statusTimerCallback();
