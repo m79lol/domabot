@@ -158,32 +158,50 @@ void Controller::writeCoils(
 } defaultCatch
 
 uint16_t Controller::readInputRegister(const REG_INP address) try {
-  return readInputRegisters(address, 1).at(0);
+  return readInputRegisters(address, 1).at(address);
 } defaultCatch
 
-std::vector<uint16_t> Controller::readInputRegisters(
+Controller::InputRegisters Controller::readInputRegisters(
   const REG_INP startAddress, const std::size_t cnt
 ) try {
-  std::vector<uint16_t> result(cnt, 0);
-  runModbusOperation([&result, &startAddress, &cnt](modbus_t* cntx){
-    return (int) cnt == modbus_read_input_registers(
-      cntx, (int) startAddress, (int) cnt, result.data());
+  if (0 == cnt) { return {}; }
+  validateRegisterRange<REG_INP>(startAddress, cnt);
+
+  std::vector<uint16_t> tmp(cnt, 0);
+  runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
+    return (int) tmp.size() == modbus_read_input_registers(
+      cntx, (int) startAddress, (int) tmp.size(), tmp.data());
   });
+
+  InputRegisters result;
+  for (size_t i = 0; i < tmp.size(); ++i) {
+    const REG_INP address = (REG_INP)((uint8_t) startAddress + i);
+    result.emplace(address, tmp[i]);
+  }
   return result;
 } defaultCatch
 
 uint16_t Controller::readHoldingRegister(const REG_HLD address) try {
-  return readHoldingRegisters(address, 1).at(0);
+  return readHoldingRegisters(address, 1).at(address);
 } defaultCatch
 
-std::vector<uint16_t> Controller::readHoldingRegisters(
+Controller::HoldingRegisters Controller::readHoldingRegisters(
   const REG_HLD startAddress, const std::size_t cnt
 ) try {
-  std::vector<uint16_t> result(cnt, 0);
-  runModbusOperation([&result, &startAddress, &cnt](modbus_t* cntx){
-    return (int) cnt == modbus_read_registers(
-      cntx, (int) startAddress, (int) cnt, result.data());
+  if (0 == cnt) { return {}; }
+  validateRegisterRange<REG_HLD>(startAddress, cnt);
+
+  std::vector<uint16_t> tmp(cnt, 0);
+  runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
+    return (int) tmp.size() == modbus_read_registers(
+      cntx, (int) startAddress, (int) tmp.size(), tmp.data());
   });
+
+  HoldingRegisters result;
+  for (size_t i = 0; i < tmp.size(); ++i) {
+    const REG_HLD address = (REG_HLD)((uint8_t) startAddress + i);
+    result.emplace(address, tmp[i]);
+  }
   return result;
 } defaultCatch
 
@@ -329,10 +347,35 @@ void Controller::getDataSrvCallback(
   const auto holdingRegs = readHoldingRegisters(
     REG_HLD::START, (size_t) REG_HLD::END);
 
-  // res->status.status =
-  // res->command.command =
-  // res->mode.mode =
-  // res->direction.direction =
+  auto& status = res->status;
+  status.controller.status      = inputRegs.at(REG_INP::STS);
+  status.stepper_left.status    = inputRegs.at(REG_INP::STPR_L);
+  status.stepper_left.position  = inputRegs.at(REG_INP::POS_L);
+  status.stepper_right.status   = inputRegs.at(REG_INP::STPR_R);
+  status.stepper_right.position = inputRegs.at(REG_INP::POS_R);
+
+  res->mode.mode           = holdingRegs.at(REG_HLD::MODE);
+  res->command.command     = holdingRegs.at(REG_HLD::CMD);
+  res->direction.direction = holdingRegs.at(REG_HLD::DIR);
+
+  auto& settings = res->settings;
+  res->settings.update_rate = holdingRegs.at(REG_HLD::RATE);
+
+  auto& stepper_left = settings.stepper_left;
+  stepper_left.target            = holdingRegs.at(REG_HLD::TARG_L);
+  stepper_left.max_speed         = holdingRegs.at(REG_HLD::MAX_SPD_L);
+  stepper_left.max_acceleration  = holdingRegs.at(REG_HLD::MAX_ACC_L);
+  stepper_left.gear_ratio        = holdingRegs.at(REG_HLD::GEAR_L);
+  stepper_left.wheel_diameter    = holdingRegs.at(REG_HLD::WHEEL_DIAM_L);
+  stepper_left.is_forward        = holdingRegs.at(REG_HLD::IS_FROWARD_L);
+
+  auto& stepper_right = settings.stepper_right;
+  stepper_right.target           = holdingRegs.at(REG_HLD::TARG_R);
+  stepper_right.max_speed        = holdingRegs.at(REG_HLD::MAX_SPD_R);
+  stepper_right.max_acceleration = holdingRegs.at(REG_HLD::MAX_ACC_R);
+  stepper_right.gear_ratio       = holdingRegs.at(REG_HLD::GEAR_R);
+  stepper_right.wheel_diameter   = holdingRegs.at(REG_HLD::WHEEL_DIAM_R);
+  stepper_right.is_forward       = holdingRegs.at(REG_HLD::IS_FROWARD_R);
 
   res->response_data.is_success = true;
   res->response_data.error_message = "";
@@ -401,11 +444,11 @@ void Controller::statusTimerCallback() try {
     REG_INP::STS, (size_t)REG_INP::END - (size_t)REG_INP::STS);
 
   auto msg = domabot_interfaces::msg::Status();
-  msg.controller.status      = inputRegs[0];
-  msg.stepper_left.status    = inputRegs[1];
-  msg.stepper_left.position  = inputRegs[2];
-  msg.stepper_right.status   = inputRegs[3];
-  msg.stepper_right.position = inputRegs[4];
+  msg.controller.status      = inputRegs.at(REG_INP::STS);
+  msg.stepper_left.status    = inputRegs.at(REG_INP::STPR_L);
+  msg.stepper_left.position  = inputRegs.at(REG_INP::POS_L);
+  msg.stepper_right.status   = inputRegs.at(REG_INP::STPR_R);
+  msg.stepper_right.position = inputRegs.at(REG_INP::POS_R);
 
   m_pubStatus->publish(msg);
 } catch (const std::exception& e) {

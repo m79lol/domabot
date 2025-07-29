@@ -25,6 +25,9 @@ namespace Domabot {
 
 class Controller : public rclcpp::Node {
   protected:
+    using HoldingRegisters = std::unordered_map<REG_HLD, uint16_t>;
+    using InputRegisters   = std::unordered_map<REG_INP, uint16_t>;
+
     modbus_t* m_cntx = nullptr;
     mutable std::mutex m_mtx;
     bool m_isConnected = false;
@@ -46,15 +49,27 @@ class Controller : public rclcpp::Node {
     );
 
     // modbus operations
+    template <typename REG> void validateRegisterRange(
+      const REG startAddress, const std::size_t cnt
+    ) try {
+      if (startAddress < REG::START) {
+        throw Exception::createError("Invalid start address!");
+      }
+      const uint8_t maxRegister = (uint8_t) startAddress + cnt;
+      if (maxRegister > (uint8_t) REG::END) {
+        throw Exception::createError("Exceed last register number!");
+      }
+    } defaultCatch
+
     bool readCoil(const COIL address);
     void writeCoil(const COIL address, const bool value);
     void writeCoils(
       const COIL startAddress, const std::vector<bool>& values);
     uint16_t readInputRegister(const REG_INP address);
-    std::vector<uint16_t> readInputRegisters(
+    InputRegisters readInputRegisters(
       const REG_INP startAddress, const std::size_t cnt);
     uint16_t readHoldingRegister(const REG_HLD address);
-    std::vector<uint16_t> readHoldingRegisters(
+    HoldingRegisters readHoldingRegisters(
       const REG_HLD startAddress, const std::size_t cnt);
     void writeHoldingRegister(const REG_HLD address, const uint16_t value);
     void writeHoldingRegisters(

@@ -1,3 +1,4 @@
+int16 target
 uint16 max_speed
 uint16 max_acceleration
 uint16 gear_ratio
