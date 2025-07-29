@@ -16,6 +16,7 @@ add_executable(${PROJECT_NAME}
   src/Controller.cpp
   src/ControllerParams.cpp
   src/Exception.cpp
+  src/Modbus.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} rclcpp domabot_interfaces)
 

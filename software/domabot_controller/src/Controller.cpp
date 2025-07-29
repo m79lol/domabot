@@ -2,33 +2,21 @@
 #include <domabot_controller/Controller.h>
 #include <domabot_controller/ControllerParams.h>
 
-
 namespace Domabot {
 
 Controller::Controller() try : Node("domabot_controller") {
 
-  RCLCPP_DEBUG_STREAM(get_logger(), "Modbus context create...");
-  m_cntx = modbus_new_rtu(
-    ControllerParams::getPath    (*this).c_str(),
-    ControllerParams::getBaudRate(*this),
-    ControllerParams::getParity  (*this),
-    ControllerParams::getDataBits(*this),
-    ControllerParams::getStopBits(*this)
+  m_modbus = std::make_shared<Modbus>(
+    get_logger()
+    , ControllerParams::getPath    (*this).c_str()
+    , ControllerParams::getBaudRate(*this)
+    , ControllerParams::getParity  (*this)
+    , ControllerParams::getDataBits(*this)
+    , ControllerParams::getStopBits(*this)
+    , ControllerParams::getSlaveId (*this)
   );
-  if (NULL == m_cntx) {
-    throw Exception::createError("Unable to create the libmodbus context!");
-  }
-  RCLCPP_DEBUG_STREAM(get_logger(), "...ok");
 
-  const unsigned int slaveId = ControllerParams::getSlaveId(*this);
-  RCLCPP_DEBUG_STREAM(get_logger(), "Modbus set slave id " << slaveId <<  "...");
-  if (modbus_set_slave(m_cntx, slaveId) < 0) {
-    throw Exception::createError(
-      "Set modbus slave address error: ", modbus_strerror(errno));
-  }
-  RCLCPP_DEBUG_STREAM(get_logger(), "...ok");
-
-  const auto protocolVersion = readInputRegister(REG_INP::VER);
+  const auto protocolVersion = m_modbus->readInputRegister(REG_INP::VER);
   if (PROTOCOL_VERSION != protocolVersion) {
     throw Exception::createError(
         "Protocol version mismatch! Awaited: ", PROTOCOL_VERSION
@@ -73,151 +61,11 @@ Controller::Controller() try : Node("domabot_controller") {
       &Controller::stopSrvCallback, this,
       std::placeholders::_1, std::placeholders::_2));
 
-  const auto pubRate = readHoldingRegister(REG_HLD::RATE);
+  const auto pubRate = m_modbus->readHoldingRegister(REG_HLD::RATE);
   const std::chrono::milliseconds pubPeriod(1000 / pubRate);
 
   m_statusTimer = create_wall_timer(
       pubPeriod, std::bind(&Controller::statusTimerCallback, this));
-} defaultCatch
-
-Controller::~Controller() noexcept {
-  if (nullptr != m_cntx) {
-    const std::lock_guard<std::mutex> lock(m_mtx);
-    modbus_close(m_cntx);
-    modbus_free(m_cntx);
-    m_cntx = nullptr;
-  }
-}
-
-void Controller::runModbusOperation(
-  std::function<bool (modbus_t*)> operation
-) try {
-  const std::lock_guard<std::mutex> lock(m_mtx);
-
-  unsigned int attempts = 2;
-  while(attempts--) {
-    try {
-      bool isNewConnect = false;
-      if (!m_isConnected) {
-        if (modbus_connect(m_cntx) < 0) {
-          throw Exception::createError(
-            "Could not establish link. Modbus error: ", modbus_strerror(errno));
-        }
-        m_isConnected = true;
-        isNewConnect = true;
-        RCLCPP_DEBUG_STREAM(get_logger(), "Reconnected.");
-      }
-      if (!operation(m_cntx)) {
-        if (m_isConnected && !isNewConnect) {
-          RCLCPP_DEBUG_STREAM(get_logger(),
-            "Modbus operation failed. Modbus error: " << modbus_strerror(errno));
-          RCLCPP_DEBUG_STREAM(get_logger(), "Trying to re-establish link...");
-          modbus_close(m_cntx);
-          m_isConnected = false;
-        }
-        throw Exception::createError(
-            "Modbus operation failed after link was re-established. Modbus error: "
-          , modbus_strerror(errno));
-      }
-      break;
-    } catch (const std::exception& e) {
-      if (attempts) {
-        RCLCPP_WARN_STREAM(get_logger(), e.what());
-        continue;
-      }
-      throw;
-    }
-  }
-  RCLCPP_DEBUG_STREAM(get_logger(), "Modbus operation successful.");
-} defaultCatch
-
-bool Controller::readCoil(const COIL address) try {
-  uint8_t result{};
-  runModbusOperation([&result, &address](modbus_t* cntx){
-    constexpr int cnt = 1;
-    return cnt == modbus_read_bits(cntx, (int) address, cnt, &result);
-  });
-  return 0 != result;
-} defaultCatch
-
-void Controller::writeCoil(const COIL address, const bool value) try {
-  return writeCoils(address, {value});
-} defaultCatch
-
-void Controller::writeCoils(
-  const COIL startAddress, const std::vector<bool>& values
-) try {
-  std::vector<uint8_t> coils(values.size(), 0);
-  for (size_t i = 0; i < values.size(); ++i) {
-    coils[i] = values[i] ? 1 : 0;
-  }
-  runModbusOperation([&startAddress, &coils](modbus_t* cntx){
-    return (int) coils.size() == modbus_write_bits(
-      cntx, (int) startAddress, (int) coils.size(), coils.data());
-  });
-} defaultCatch
-
-uint16_t Controller::readInputRegister(const REG_INP address) try {
-  return readInputRegisters(address, 1).at(address);
-} defaultCatch
-
-Controller::InputRegisters Controller::readInputRegisters(
-  const REG_INP startAddress, const std::size_t cnt
-) try {
-  if (0 == cnt) { return {}; }
-  validateRegisterRange<REG_INP>(startAddress, cnt);
-
-  std::vector<uint16_t> tmp(cnt, 0);
-  runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
-    return (int) tmp.size() == modbus_read_input_registers(
-      cntx, (int) startAddress, (int) tmp.size(), tmp.data());
-  });
-
-  InputRegisters result;
-  for (size_t i = 0; i < tmp.size(); ++i) {
-    const REG_INP address = (REG_INP)((uint8_t) startAddress + i);
-    result.emplace(address, tmp[i]);
-  }
-  return result;
-} defaultCatch
-
-uint16_t Controller::readHoldingRegister(const REG_HLD address) try {
-  return readHoldingRegisters(address, 1).at(address);
-} defaultCatch
-
-Controller::HoldingRegisters Controller::readHoldingRegisters(
-  const REG_HLD startAddress, const std::size_t cnt
-) try {
-  if (0 == cnt) { return {}; }
-  validateRegisterRange<REG_HLD>(startAddress, cnt);
-
-  std::vector<uint16_t> tmp(cnt, 0);
-  runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
-    return (int) tmp.size() == modbus_read_registers(
-      cntx, (int) startAddress, (int) tmp.size(), tmp.data());
-  });
-
-  HoldingRegisters result;
-  for (size_t i = 0; i < tmp.size(); ++i) {
-    const REG_HLD address = (REG_HLD)((uint8_t) startAddress + i);
-    result.emplace(address, tmp[i]);
-  }
-  return result;
-} defaultCatch
-
-void Controller::writeHoldingRegister(
-  const REG_HLD address, const uint16_t value
-) try {
-  writeHoldingRegisters(address, {value});
-} defaultCatch
-
-void Controller::writeHoldingRegisters(
-  const REG_HLD startAddress, const std::vector<uint16_t> values
-) try {
-  runModbusOperation([&startAddress, &values](modbus_t* cntx){
-    return (int) values.size() == modbus_write_registers(
-      cntx, (int) startAddress, (int) values.size(), values.data());
-  });
 } defaultCatch
 
 #define CASE_ITEM(TYPE, ITEM) \
@@ -298,25 +146,25 @@ void Controller::checkDirection(const DIR direction) try {
 void Controller::runCommand(const CMD cmd) try {
   RCLCPP_INFO_STREAM(get_logger(), "Start running command: " << getCommandName(cmd));
 
-  writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
-  writeCoils(COIL::START, {true, false});
+  m_modbus->writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
+  m_modbus->writeCoils(COIL::START, {true, false});
 
   RCLCPP_DEBUG_STREAM(get_logger(), "Command sended");
 
   rclcpp::Rate loopRate(2);
   bool isCompleted = false;
-  bool isAccepted = !readCoil(COIL::NEW_CMD);
+  bool isAccepted = !m_modbus->readCoil(COIL::NEW_CMD);
   size_t counter = 0;
   while (rclcpp::ok() && !isCompleted) {
     loopRate.sleep();
 
     if (!isAccepted) {
-      isAccepted = !readCoil(COIL::NEW_CMD);
+      isAccepted = !m_modbus->readCoil(COIL::NEW_CMD);
       RCLCPP_DEBUG_STREAM(get_logger(), "Waiting accept... " << ++counter);
       continue;
     }
 
-    isCompleted = readCoil(COIL::NEW_STS);
+    isCompleted = m_modbus->readCoil(COIL::NEW_STS);
     RCLCPP_DEBUG_STREAM(get_logger(), "Waiting complete... " << ++counter);
   }
 
@@ -324,8 +172,8 @@ void Controller::runCommand(const CMD cmd) try {
     throw Exception::createError("Invoked rclcpp::shutdown!");
   }
 
-  const STS status = (STS)readInputRegister(REG_INP::STS);
-  writeCoil(COIL::NEW_STS, false);
+  const STS status = (STS) m_modbus->readInputRegister(REG_INP::STS);
+  m_modbus->writeCoil(COIL::NEW_STS, false);
   checkStatus(status);
 } defaultCatch
 
@@ -342,9 +190,9 @@ void Controller::getDataSrvCallback(
     [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::GetData::Request> req
   , std::shared_ptr<domabot_interfaces::srv::GetData::Response> res
 ) try {
-  const auto inputRegs = readInputRegisters(
+  const Modbus::InputRegisters inputRegs = m_modbus->readInputRegisters(
     REG_INP::STS, (uint8_t) REG_INP::END - (uint8_t) REG_INP::STS);
-  const auto holdingRegs = readHoldingRegisters(
+  const Modbus::HoldingRegisters holdingRegs = m_modbus->readHoldingRegisters(
     REG_HLD::START, (size_t) REG_HLD::END);
 
   auto& status = res->status;
@@ -388,7 +236,7 @@ void Controller::moveSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::Move::Request> req
   , std::shared_ptr<domabot_interfaces::srv::Move::Response> res
 ) try {
-  writeHoldingRegisters(
+  m_modbus->writeHoldingRegisters(
       REG_HLD::TARG_L
     , { (uint16_t) req->target_position_left, (uint16_t) req->target_position_right });
 
@@ -402,7 +250,7 @@ void Controller::setDirectionSrvCallback(
   , std::shared_ptr<domabot_interfaces::srv::SetDirection::Response> res
 ) try {
   checkDirection((DIR) req->direction.direction);
-  writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
+  m_modbus->writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
 
   processRequestCommand<domabot_interfaces::srv::SetDirection>(res, CMD::MODE);
 } catch (const std::exception& e) {
@@ -414,7 +262,7 @@ void Controller::setModeSrvCallback(
   , std::shared_ptr<domabot_interfaces::srv::SetMode::Response> res
 ) try {
   checkMode((MODE) req->mode.mode);
-  writeHoldingRegister(REG_HLD::MODE, req->mode.mode);
+  m_modbus->writeHoldingRegister(REG_HLD::MODE, req->mode.mode);
 
   processRequestCommand<domabot_interfaces::srv::SetMode>(res, CMD::MODE);
 } catch (const std::exception& e) {
@@ -425,7 +273,29 @@ void Controller::setSettingsSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::SetSettings::Request> req
   , std::shared_ptr<domabot_interfaces::srv::SetSettings::Response> res
 ) try {
+  Modbus::HoldingRegisters holdingRegs;
 
+  const auto& settings = req->settings;
+  holdingRegs.emplace(REG_HLD::RATE, settings.update_rate);
+
+  const auto& stepper_left = settings.stepper_left;
+  holdingRegs.emplace(REG_HLD::TARG_L,       stepper_left.target);
+  holdingRegs.emplace(REG_HLD::MAX_SPD_L,    stepper_left.max_speed);
+  holdingRegs.emplace(REG_HLD::MAX_ACC_L,    stepper_left.max_acceleration);
+  holdingRegs.emplace(REG_HLD::GEAR_L,       stepper_left.gear_ratio);
+  holdingRegs.emplace(REG_HLD::WHEEL_DIAM_L, stepper_left.wheel_diameter);
+  holdingRegs.emplace(REG_HLD::IS_FROWARD_L, stepper_left.is_forward);
+
+  const auto& stepper_right = settings.stepper_right;
+  holdingRegs.emplace(REG_HLD::TARG_R,       stepper_right.target);
+  holdingRegs.emplace(REG_HLD::MAX_SPD_R,    stepper_right.max_speed);
+  holdingRegs.emplace(REG_HLD::MAX_ACC_R,    stepper_right.max_acceleration);
+  holdingRegs.emplace(REG_HLD::GEAR_R,       stepper_right.gear_ratio);
+  holdingRegs.emplace(REG_HLD::WHEEL_DIAM_R, stepper_right.wheel_diameter);
+  holdingRegs.emplace(REG_HLD::IS_FROWARD_R, stepper_right.is_forward);
+
+  //m_modbus->writeHoldingRegisters(holdingRegs); // TODO
+  processRequestCommand<domabot_interfaces::srv::SetSettings>(res, CMD::UPDATE);
 }  catch (const std::exception& e) {
   processExceptionCommand<domabot_interfaces::srv::SetSettings>(res, e);
 }
@@ -440,7 +310,7 @@ void Controller::stopSrvCallback(
 }
 
 void Controller::statusTimerCallback() try {
-  const auto inputRegs = readInputRegisters(
+  const auto inputRegs = m_modbus->readInputRegisters(
     REG_INP::STS, (size_t)REG_INP::END - (size_t)REG_INP::STS);
 
   auto msg = domabot_interfaces::msg::Status();
