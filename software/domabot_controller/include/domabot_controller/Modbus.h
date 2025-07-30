@@ -11,6 +11,7 @@
 
 #include <memory>
 #include <mutex>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -20,10 +21,19 @@ class Modbus {
   public:
     using Ptr = std::shared_ptr<Modbus>;
     using CnstPtr = std::shared_ptr<const Modbus>;
-    using HoldingRegisters = std::unordered_map<REG_HLD, uint16_t>;
-    using InputRegisters   = std::unordered_map<REG_INP, uint16_t>;
+
+    using Coils            = std::set<COIL>;
+    using HoldingRegisters = std::set<REG_HLD>;
+    using InputRegisters   = std::set<REG_INP>;
+
+    using CoilsValues            = std::unordered_map<COIL, bool>;
+    using HoldingRegistersValues = std::unordered_map<REG_HLD, uint16_t>;
+    using InputRegistersValues   = std::unordered_map<REG_INP, uint16_t>;
 
   protected:
+    template <typename T> using WriteFunc = std::function<void(const uint8_t, const std::vector<T>&)>;
+    template <typename T> using ReadFunc = std::function<std::vector<T>(const uint8_t, const size_t)>;
+
     const rclcpp::Logger m_logger;
     modbus_t* m_cntx = nullptr;
     mutable std::mutex m_mtx;
@@ -35,15 +45,76 @@ class Modbus {
       std::function<bool (modbus_t*)> operation
     );
 
-    template <typename REG> void validateRegisterRange(
-      const REG startAddress, const std::size_t cnt
-    ) try {
-      if (startAddress < REG::START) {
-        throw Exception::createError("Invalid start address!");
+    template <typename Item>
+    static std::list<std::list<uint8_t>> getItemsSequences(const std::set<Item>& items) try {
+      Exception err("Invalid addresses: ");
+      for (const auto& iReg : items) {
+        const uint8_t address = (uint8_t) iReg;
+        if (address >= (uint8_t) Item::END) {
+          err.add(Exception::createMsg("Item with address: ", address));
+        }
       }
-      const uint8_t maxRegister = (uint8_t) startAddress + cnt;
-      if (maxRegister > (uint8_t) REG::END) {
-        throw Exception::createError("Exceed last register number!");
+      err.checkSelf();
+
+      std::list<std::list<uint8_t>> seqs;
+      for (auto it = items.begin(); it != items.end(); ) {
+        std::list<uint8_t> seq;
+        while (it != items.end()) {
+          const uint8_t curr = (uint8_t) *it++;
+          seq.push_back(curr);
+          if (it != items.end()) {
+            if (1 != ((uint8_t) *it - curr)) {
+              break;
+            }
+          }
+        }
+        seqs.push_back(seq);
+      }
+      return seqs;
+    } defaultCatch
+
+    template <typename Item, typename T> std::unordered_map<Item, T> readItems(
+      const std::set<Item>& items,
+      const ReadFunc<T>& readFunc
+    ) try {
+      const std::list<std::list<uint8_t>> seqs = getItemsSequences<Item>(items);
+
+      std::unordered_map<Item, T> itemValues;
+      for (const auto& seq : seqs) {
+        const uint8_t startAddress = seq.front();
+        const size_t cnt = seq.back() - startAddress + 1;
+        const std::vector<T> values = readFunc(startAddress, cnt);
+
+        size_t i = 0;
+        for (auto it = seq.begin(); it != seq.end(); ++it) {
+          itemValues.emplace((Item) *it, values[i++]);
+        }
+      }
+
+      return itemValues;
+    } defaultCatch
+
+    template <typename Item, typename T> void writeItems(
+      const std::unordered_map<Item, T>& itemValues,
+      const WriteFunc<T>& writeFunc
+    ) try {
+      std::set<Item> items;
+      for (const auto& item : itemValues) {
+        items.insert(item.first);
+      }
+
+      const std::list<std::list<uint8_t>> seqs = getItemsSequences<Item>(items);
+
+      for (const auto& seq : seqs) {
+        const uint8_t startAddress = seq.front();
+        const size_t cnt = seq.back() - startAddress + 1;
+
+        size_t i = 0;
+        std::vector<T> values(cnt, 0);
+        for (auto it = seq.begin(); it != seq.end(); ++it) {
+          values[i++] = itemValues.at((Item) *it);
+        }
+        writeFunc(startAddress, values);
       }
     } defaultCatch
 
@@ -66,18 +137,17 @@ class Modbus {
     virtual ~Modbus() noexcept;
 
     bool readCoil(const COIL address);
+
     void writeCoil(const COIL address, const bool value);
-    void writeCoils(
-      const COIL startAddress, const std::vector<bool>& values);
+    void writeCoils(const CoilsValues& coilValues);
+
     uint16_t readInputRegister(const REG_INP address);
-    InputRegisters readInputRegisters(
-      const REG_INP startAddress, const std::size_t cnt);
+    InputRegistersValues readInputRegisters(const InputRegisters& registers);
+
     uint16_t readHoldingRegister(const REG_HLD address);
-    HoldingRegisters readHoldingRegisters(
-      const REG_HLD startAddress, const std::size_t cnt);
+    HoldingRegistersValues readHoldingRegisters(const HoldingRegisters& registers);
     void writeHoldingRegister(const REG_HLD address, const uint16_t value);
-    void writeHoldingRegisters(
-      const REG_HLD startAddress, const std::vector<uint16_t> values);
+    void writeHoldingRegisters(const HoldingRegistersValues& registerValues);
 
 }; // Modbus
 

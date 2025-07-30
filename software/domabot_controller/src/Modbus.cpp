@@ -97,83 +97,98 @@ bool Modbus::readCoil(const COIL address) try {
 } defaultCatch
 
 void Modbus::writeCoil(const COIL address, const bool value) try {
-  return writeCoils(address, {value});
+  return writeCoils({{address, value}});
 } defaultCatch
 
 void Modbus::writeCoils(
-  const COIL startAddress, const std::vector<bool>& values
+  const CoilsValues& coilValues
 ) try {
-  std::vector<uint8_t> coils(values.size(), 0);
-  for (size_t i = 0; i < values.size(); ++i) {
-    coils[i] = values[i] ? 1 : 0;
-  }
-  runModbusOperation([&startAddress, &coils](modbus_t* cntx){
-    return (int) coils.size() == modbus_write_bits(
-      cntx, (int) startAddress, (int) coils.size(), coils.data());
-  });
+  if (coilValues.empty()) { return; }
+
+  const WriteFunc<bool> writeFunc = [this](
+    const uint8_t startAddress, const std::vector<bool>& values
+  ) {
+    runModbusOperation([&startAddress, &values](modbus_t* cntx){
+      std::vector<uint8_t> coils(values.size(), 0);
+      for (size_t i = 0; i < values.size(); ++i) {
+        coils[i] = values[i] ? 1 : 0;
+      }
+
+      return (int) coils.size() == modbus_write_bits(
+        cntx, (int) startAddress, (int) coils.size(), coils.data());
+    });
+  };
+
+  writeItems<COIL, bool>(coilValues, writeFunc);
 } defaultCatch
 
 uint16_t Modbus::readInputRegister(const REG_INP address) try {
-  return readInputRegisters(address, 1).at(address);
+  return readInputRegisters({address}).at(address);
 } defaultCatch
 
-Modbus::InputRegisters Modbus::readInputRegisters(
-  const REG_INP startAddress, const std::size_t cnt
+Modbus::InputRegistersValues Modbus::readInputRegisters(
+  const InputRegisters& registers
 ) try {
-  if (0 == cnt) { return {}; }
-  validateRegisterRange<REG_INP>(startAddress, cnt);
+  if (registers.empty()) { return {}; }
 
-  std::vector<uint16_t> tmp(cnt, 0);
-  runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
-    return (int) tmp.size() == modbus_read_input_registers(
-      cntx, (int) startAddress, (int) tmp.size(), tmp.data());
-  });
+  const ReadFunc<uint16_t> readFunc = [this](
+    const uint8_t startAddress, const size_t cnt
+  ) {
+    std::vector<uint16_t> tmp(cnt, 0);
+    runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
+      return (int) tmp.size() == modbus_read_input_registers(
+        cntx, (int) startAddress, (int) tmp.size(), tmp.data());
+    });
+    return tmp;
+  };
 
-  InputRegisters result;
-  for (size_t i = 0; i < tmp.size(); ++i) {
-    const REG_INP address = (REG_INP)((uint8_t) startAddress + i);
-    result.emplace(address, tmp[i]);
-  }
-  return result;
+  return readItems<REG_INP, uint16_t>(registers, readFunc);
 } defaultCatch
 
 uint16_t Modbus::readHoldingRegister(const REG_HLD address) try {
-  return readHoldingRegisters(address, 1).at(address);
+  return readHoldingRegisters({address}).at(address);
 } defaultCatch
 
-Modbus::HoldingRegisters Modbus::readHoldingRegisters(
-  const REG_HLD startAddress, const std::size_t cnt
+Modbus::HoldingRegistersValues Modbus::readHoldingRegisters(
+  const HoldingRegisters& registers
 ) try {
-  if (0 == cnt) { return {}; }
-  validateRegisterRange<REG_HLD>(startAddress, cnt);
+  if (registers.empty()) { return {}; }
 
-  std::vector<uint16_t> tmp(cnt, 0);
-  runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
-    return (int) tmp.size() == modbus_read_registers(
-      cntx, (int) startAddress, (int) tmp.size(), tmp.data());
-  });
+  const ReadFunc<uint16_t> readFunc = [this](
+    const uint8_t startAddress, const size_t cnt
+  ) {
+    std::vector<uint16_t> tmp(cnt, 0);
+    runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
+      return (int) tmp.size() == modbus_read_registers(
+        cntx, (int) startAddress, (int) tmp.size(), tmp.data());
+    });
+    return tmp;
+  };
 
-  HoldingRegisters result;
-  for (size_t i = 0; i < tmp.size(); ++i) {
-    const REG_HLD address = (REG_HLD)((uint8_t) startAddress + i);
-    result.emplace(address, tmp[i]);
-  }
-  return result;
+  return readItems<REG_HLD, uint16_t>(registers, readFunc);
 } defaultCatch
 
 void Modbus::writeHoldingRegister(
   const REG_HLD address, const uint16_t value
 ) try {
-  writeHoldingRegisters(address, {value});
+  writeHoldingRegisters({{address, value}});
 } defaultCatch
 
 void Modbus::writeHoldingRegisters(
-  const REG_HLD startAddress, const std::vector<uint16_t> values
+  const HoldingRegistersValues& registerValues
 ) try {
-  runModbusOperation([&startAddress, &values](modbus_t* cntx){
-    return (int) values.size() == modbus_write_registers(
-      cntx, (int) startAddress, (int) values.size(), values.data());
-  });
+  if (registerValues.empty()) { return; }
+
+  const WriteFunc<uint16_t> writeFunc = [this](
+    const uint8_t startAddress, const std::vector<uint16_t>& values
+  ) {
+    runModbusOperation([&startAddress, &values](modbus_t* cntx) {
+      return (int) values.size() == modbus_write_registers(
+        cntx, (int) startAddress, (int) values.size(), values.data());
+    });
+  };
+
+  writeItems<REG_HLD, uint16_t>(registerValues, writeFunc);
 } defaultCatch
 
 } // Domabot

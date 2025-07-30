@@ -147,7 +147,7 @@ void Controller::runCommand(const CMD cmd) try {
   RCLCPP_INFO_STREAM(get_logger(), "Start running command: " << getCommandName(cmd));
 
   m_modbus->writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
-  m_modbus->writeCoils(COIL::START, {true, false});
+  m_modbus->writeCoils({{COIL::NEW_CMD, true}, {COIL::NEW_STS, false}});
 
   RCLCPP_DEBUG_STREAM(get_logger(), "Command sended");
 
@@ -190,10 +190,32 @@ void Controller::getDataSrvCallback(
     [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::GetData::Request> req
   , std::shared_ptr<domabot_interfaces::srv::GetData::Response> res
 ) try {
-  const Modbus::InputRegisters inputRegs = m_modbus->readInputRegisters(
-    REG_INP::STS, (uint8_t) REG_INP::END - (uint8_t) REG_INP::STS);
-  const Modbus::HoldingRegisters holdingRegs = m_modbus->readHoldingRegisters(
-    REG_HLD::START, (size_t) REG_HLD::END);
+  const Modbus::InputRegistersValues inputRegs = m_modbus->readInputRegisters({
+      REG_INP::STS
+    , REG_INP::STPR_L
+    , REG_INP::POS_L
+    , REG_INP::STPR_R
+    , REG_INP::POS_R
+    , REG_INP::END
+  });
+  const Modbus::HoldingRegistersValues holdingRegs = m_modbus->readHoldingRegisters({
+      REG_HLD::CMD
+    , REG_HLD::TARG_L
+    , REG_HLD::TARG_R
+    , REG_HLD::RATE
+    , REG_HLD::MAX_SPD_L
+    , REG_HLD::MAX_ACC_L
+    , REG_HLD::GEAR_L
+    , REG_HLD::WHEEL_DIAM_L
+    , REG_HLD::IS_FROWARD_L
+    , REG_HLD::MAX_SPD_R
+    , REG_HLD::MAX_ACC_R
+    , REG_HLD::GEAR_R
+    , REG_HLD::WHEEL_DIAM_R
+    , REG_HLD::IS_FROWARD_R
+    , REG_HLD::MODE
+    , REG_HLD::DIR
+  });
 
   auto& status = res->status;
   status.controller.status      = inputRegs.at(REG_INP::STS);
@@ -236,9 +258,10 @@ void Controller::moveSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::Move::Request> req
   , std::shared_ptr<domabot_interfaces::srv::Move::Response> res
 ) try {
-  m_modbus->writeHoldingRegisters(
-      REG_HLD::TARG_L
-    , { (uint16_t) req->target_position_left, (uint16_t) req->target_position_right });
+  m_modbus->writeHoldingRegisters({
+      { REG_HLD::TARG_L, (uint16_t) req->target_position_left }
+    , { REG_HLD::TARG_R, (uint16_t) req->target_position_right }
+  });
 
   processRequestCommand<domabot_interfaces::srv::Move>(res, CMD::MOVE);
 } catch (const std::exception& e) {
@@ -273,7 +296,7 @@ void Controller::setSettingsSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::SetSettings::Request> req
   , std::shared_ptr<domabot_interfaces::srv::SetSettings::Response> res
 ) try {
-  Modbus::HoldingRegisters holdingRegs;
+  Modbus::HoldingRegistersValues holdingRegs;
 
   const auto& settings = req->settings;
   holdingRegs.emplace(REG_HLD::RATE, settings.update_rate);
@@ -294,7 +317,7 @@ void Controller::setSettingsSrvCallback(
   holdingRegs.emplace(REG_HLD::WHEEL_DIAM_R, stepper_right.wheel_diameter);
   holdingRegs.emplace(REG_HLD::IS_FROWARD_R, stepper_right.is_forward);
 
-  //m_modbus->writeHoldingRegisters(holdingRegs); // TODO
+  m_modbus->writeHoldingRegisters(holdingRegs);
   processRequestCommand<domabot_interfaces::srv::SetSettings>(res, CMD::UPDATE);
 }  catch (const std::exception& e) {
   processExceptionCommand<domabot_interfaces::srv::SetSettings>(res, e);
@@ -310,8 +333,13 @@ void Controller::stopSrvCallback(
 }
 
 void Controller::statusTimerCallback() try {
-  const auto inputRegs = m_modbus->readInputRegisters(
-    REG_INP::STS, (size_t)REG_INP::END - (size_t)REG_INP::STS);
+  const auto inputRegs = m_modbus->readInputRegisters({
+      REG_INP::STS
+    , REG_INP::STPR_L
+    , REG_INP::POS_L
+    , REG_INP::STPR_R
+    , REG_INP::POS_R
+  });
 
   auto msg = domabot_interfaces::msg::Status();
   msg.controller.status      = inputRegs.at(REG_INP::STS);
