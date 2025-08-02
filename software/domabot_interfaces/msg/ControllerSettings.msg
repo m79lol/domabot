@@ -1,3 +1,3 @@
-uint16 update_rate
-StepperSettings stepper_left
-StepperSettings stepper_right
+uint16[<=1] update_rate
+StepperSettings[<=1] stepper_left
+StepperSettings[<=1] stepper_right

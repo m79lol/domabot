@@ -326,7 +326,8 @@ void processCommand() {
       completeCommand(STS::OK);
       break;
     };
-    case CMD::UPDATE: {
+    case CMD::UPDATE:
+    case CMD::SAVE: {
       STS status = STS::OK;
       controllerData.updateRateHz = holdingRegisterRead(REG_HLD::RATE);
       if (0 == controllerData.updateRateHz) {
@@ -350,7 +351,7 @@ void processCommand() {
         }
       }
 
-      if (STS::OK == status) {
+      if (STS::OK == status && CMD::SAVE == command) {
         memory.updateNow();
       }
       loadFromMemory();
@@ -382,7 +383,7 @@ bool processEmergency() {
 
     // drop active command
     coilWrite(COIL::NEW_CMD, 0);
-    completeCommand(STS::EMRGENCY);
+    completeCommand(STS::EMERGENCY);
   } else if (!isEmergency && isWasEmergency) {
     isWasEmergency = false;
     updateStatus(STS::OK);

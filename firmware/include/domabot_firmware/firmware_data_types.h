@@ -14,8 +14,9 @@ enum class CMD : uint8_t {
   STOP   = 1,
   MOVE   = 2,
   UPDATE = 3,
-  MODE   = 4,
-  DIR    = 5
+  SAVE   = 4,
+  MODE   = 5,
+  DIR    = 6
 };
 
 /**
@@ -29,7 +30,7 @@ enum class STS : uint8_t {
   ERR_PARAMS  = 3,
   ERR_MODE    = 4,
   ERR_DIR     = 5,
-  EMRGENCY    = 6,
+  EMERGENCY    = 6,
   ERR_UNKNOWN = 99
 };
 

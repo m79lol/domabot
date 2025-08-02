@@ -46,16 +46,30 @@ class Modbus {
     );
 
     template <typename Item>
-    static std::list<std::list<uint8_t>> getItemsSequences(const std::set<Item>& items) try {
-      Exception err("Invalid addresses: ");
+    static void checkInvalidAddresses(const std::set<Item>& items) try {
+      std::list<uint8_t> invalids;
       for (const auto& iReg : items) {
         const uint8_t address = (uint8_t) iReg;
         if (address >= (uint8_t) Item::END) {
-          err.add(Exception::createMsg("Item with address: ", address));
+          invalids.push_back(address);
         }
       }
-      err.checkSelf();
+      if (invalids.empty()) {
+        return;
+      }
 
+      const auto concat = [](std::string a, const uint8_t b) {
+        return std::move(a) + ", " + std::to_string(b);
+      };
+      const std::string invalidsStr = std::accumulate(
+          std::next(invalids.rbegin()), invalids.rend(), std::to_string(invalids.front())
+        , concat);
+
+      throw Exception::createError("Invalid addresses: ", invalidsStr);
+    } defaultCatch
+
+    template <typename Item>
+    static std::list<std::list<uint8_t>> getItemsSequences(const std::set<Item>& items) try {
       std::list<std::list<uint8_t>> seqs;
       for (auto it = items.begin(); it != items.end(); ) {
         std::list<uint8_t> seq;
@@ -77,6 +91,7 @@ class Modbus {
       const std::set<Item>& items,
       const ReadFunc<T>& readFunc
     ) try {
+      checkInvalidAddresses<Item>(items);
       const std::list<std::list<uint8_t>> seqs = getItemsSequences<Item>(items);
 
       std::unordered_map<Item, T> itemValues;
@@ -103,6 +118,7 @@ class Modbus {
         items.insert(item.first);
       }
 
+      checkInvalidAddresses<Item>(items);
       const std::list<std::list<uint8_t>> seqs = getItemsSequences<Item>(items);
 
       for (const auto& seq : seqs) {
@@ -137,6 +153,7 @@ class Modbus {
     virtual ~Modbus() noexcept;
 
     bool readCoil(const COIL address);
+    CoilsValues readCoils(const Coils& coils);
 
     void writeCoil(const COIL address, const bool value);
     void writeCoils(const CoilsValues& coilValues);

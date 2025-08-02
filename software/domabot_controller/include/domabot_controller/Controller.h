@@ -21,6 +21,9 @@
 namespace Domabot {
 
 class Controller : public rclcpp::Node {
+  public:
+    using Ptr = std::shared_ptr<Controller>;
+    using CnstPtr = std::shared_ptr<const Controller>;
   protected:
     Modbus::Ptr m_modbus = nullptr;
 
@@ -35,9 +38,15 @@ class Controller : public rclcpp::Node {
     rclcpp::Service<domabot_interfaces::srv::Stop>::SharedPtr m_srvStop = nullptr;
 
     rclcpp::TimerBase::SharedPtr m_statusTimer = nullptr;
+    rclcpp::CallbackGroup::SharedPtr m_timerCallbackGroup = nullptr;
+    uint16_t m_statusRate = 1;
+
+    bool m_isCommandExecuting = false;
+    MODE m_currentMode = MODE::TRG;
 
     static const std::string& getCommandName(const CMD command);
     static const std::string& getStatusName(const STS status);
+    static const std::string& getModeName(const MODE mode);
 
     void checkStatus(const STS status) const;
     static void checkMode(const MODE mode);
@@ -68,6 +77,18 @@ class Controller : public rclcpp::Node {
       res->response_data.error_message = msg;
       RCLCPP_ERROR_STREAM(get_logger(), msg);
     }
+
+    template <typename Container> void setRegister(
+        Modbus::HoldingRegistersValues& holdingRegs
+      , const REG_HLD address
+      , const Container& container
+    ) try {
+      if (!container.empty()) {
+        holdingRegs.emplace(address, container.front());
+      }
+    } defaultCatch
+
+    void restartStatusTimer(const uint16_t rate);
 
     void brakeSrvCallback(
         const std::shared_ptr<domabot_interfaces::srv::Brake::Request> req

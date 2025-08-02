@@ -4,7 +4,7 @@
 namespace Domabot {
 
 Modbus::Modbus(
-  const rclcpp::Logger& logger
+    const rclcpp::Logger& logger
   , const std::string& path
   , const unsigned int baudRate
   , const char parity
@@ -88,12 +88,31 @@ void Modbus::runModbusOperation(
 } defaultCatch
 
 bool Modbus::readCoil(const COIL address) try {
-  uint8_t result{};
-  runModbusOperation([&result, &address](modbus_t* cntx){
-    constexpr int cnt = 1;
-    return cnt == modbus_read_bits(cntx, (int) address, cnt, &result);
-  });
-  return 0 != result;
+  return readCoils({address}).at(address);
+} defaultCatch
+
+Modbus::CoilsValues Modbus::readCoils(
+  const Coils& coils
+) try {
+  if (coils.empty()) { return {}; }
+
+  const ReadFunc<bool> readFunc = [this](
+    const uint8_t startAddress, const size_t cnt
+  ) {
+    std::vector<uint8_t> tmp(cnt, 0);
+    runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
+      return (int) tmp.size() == modbus_read_bits(
+        cntx, (int) startAddress, (int) tmp.size(), tmp.data());
+    });
+
+    std::vector<bool> coils(cnt, false);
+    for (size_t i = 0; i < cnt; ++i) {
+      coils[i] = 0 != tmp[i];
+    }
+    return coils;
+  };
+
+  return readItems<COIL, bool>(coils, readFunc);
 } defaultCatch
 
 void Modbus::writeCoil(const COIL address, const bool value) try {

@@ -7,7 +7,7 @@ namespace Domabot {
 Controller::Controller() try : Node("domabot_controller") {
 
   m_modbus = std::make_shared<Modbus>(
-    get_logger()
+      get_logger().get_child("Modbus")
     , ControllerParams::getPath    (*this).c_str()
     , ControllerParams::getBaudRate(*this)
     , ControllerParams::getParity  (*this)
@@ -23,49 +23,97 @@ Controller::Controller() try : Node("domabot_controller") {
       , ". Obtained: ", protocolVersion);
   }
 
+  const Modbus::HoldingRegistersValues holdingRegs = m_modbus->readHoldingRegisters({
+    REG_HLD::RATE,
+    REG_HLD::MODE
+  });
+
+  const auto pubRate = holdingRegs.at(REG_HLD::RATE);
+  m_currentMode = (MODE) holdingRegs.at(REG_HLD::MODE);
+
   m_pubStatus = create_publisher<domabot_interfaces::msg::Status>("status", 1);
 
+  m_timerCallbackGroup =
+    create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  const rclcpp::CallbackGroup::SharedPtr serviceCallbackGroup =
+    create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+
   m_srvBrake = create_service<domabot_interfaces::srv::Brake>(
-    "brake",
-    std::bind(
-      &Controller::brakeSrvCallback, this,
-      std::placeholders::_1, std::placeholders::_2));
+      "brake"
+    , std::bind(
+        &Controller::brakeSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , serviceCallbackGroup
+  );
   m_srvGetData = create_service<domabot_interfaces::srv::GetData>(
-    "get_controller",
-    std::bind(
-      &Controller::getDataSrvCallback, this,
-      std::placeholders::_1, std::placeholders::_2));
+      "get_data"
+    , std::bind(
+        &Controller::getDataSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , serviceCallbackGroup
+  );
   m_srvMove = create_service<domabot_interfaces::srv::Move>(
-    "move",
-    std::bind(
-      &Controller::moveSrvCallback, this,
-      std::placeholders::_1, std::placeholders::_2));
+      "move"
+    , std::bind(
+        &Controller::moveSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , serviceCallbackGroup
+  );
   m_srvSetDirection = create_service<domabot_interfaces::srv::SetDirection>(
-    "set_direction",
-    std::bind(
-      &Controller::setDirectionSrvCallback, this,
-      std::placeholders::_1, std::placeholders::_2));
+      "set_direction"
+    , std::bind(
+        &Controller::setDirectionSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , serviceCallbackGroup
+  );
   m_srvSetMode = create_service<domabot_interfaces::srv::SetMode>(
-    "set_mode",
-    std::bind(
-      &Controller::setModeSrvCallback, this,
-      std::placeholders::_1, std::placeholders::_2));
+      "set_mode"
+    , std::bind(
+        &Controller::setModeSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , serviceCallbackGroup
+  );
   m_srvSetSettings = create_service<domabot_interfaces::srv::SetSettings>(
-    "set_settings",
-    std::bind(
-      &Controller::setSettingsSrvCallback, this,
-      std::placeholders::_1, std::placeholders::_2));
+      "set_settings"
+    , std::bind(
+        &Controller::setSettingsSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , serviceCallbackGroup
+  );
   m_srvStop = create_service<domabot_interfaces::srv::Stop>(
-    "stop",
-    std::bind(
-      &Controller::stopSrvCallback, this,
-      std::placeholders::_1, std::placeholders::_2));
+      "stop"
+    , std::bind(
+        &Controller::stopSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , serviceCallbackGroup
+  );
 
-  const auto pubRate = m_modbus->readHoldingRegister(REG_HLD::RATE);
-  const std::chrono::milliseconds pubPeriod(1000 / pubRate);
+  restartStatusTimer(pubRate);
 
-  m_statusTimer = create_wall_timer(
-      pubPeriod, std::bind(&Controller::statusTimerCallback, this));
+  RCLCPP_INFO_STREAM(
+      get_logger()
+    , "Node " << get_name() << " inited, with protocol version: " << protocolVersion);
+
+  switch (m_currentMode) {
+    case MODE::TRG: {
+      runCommand(CMD::BRAKE);
+      break;
+    }
+    case MODE::DRCT: {
+      m_modbus->writeHoldingRegister(REG_HLD::DIR, (uint16_t) DIR::STOP);
+      runCommand(CMD::DIR);
+      break;
+    }
+    case MODE::WRD: { [[fallthrough]]; }
+    default: { break; }
+  }
 } defaultCatch
 
 #define CASE_ITEM(TYPE, ITEM) \
@@ -84,7 +132,7 @@ const std::string& Controller::getCommandName(const CMD command) try {
     CASE_COMMAND(STOP);
     CASE_COMMAND(UPDATE);
     default: {
-      throw Exception::createError("Unknow command type!");
+      throw Exception::createError("Unknow command ", (uint16_t) command, "!");
     }
   }
   #undef CASE_COMMAND
@@ -99,13 +147,26 @@ const std::string& Controller::getStatusName(const STS status) try {
     CASE_STATUS(ERR_PARAMS);
     CASE_STATUS(ERR_MODE);
     CASE_STATUS(ERR_DIR);
-    CASE_STATUS(EMRGENCY);
+    CASE_STATUS(EMERGENCY);
     CASE_STATUS(ERR_UNKNOWN);
     default: {
-      throw Exception::createError("Unknow status type!");
+      throw Exception::createError("Unknow status ", (uint16_t) status, "!");
     }
   }
   #undef CASE_STATUS
+} defaultCatch
+
+const std::string& Controller::getModeName(const MODE mode) try {
+  #define CASE_MODE(MODE_) CASE_ITEM(MODE, MODE_)
+  switch (mode) {
+    CASE_MODE(TRG);
+    CASE_MODE(DRCT);
+    CASE_MODE(WRD);
+    default: {
+      throw Exception::createError("Unknow mode ", (uint16_t) mode, "!");
+    }
+  }
+  #undef CASE_MODE
 } defaultCatch
 
 #undef CASE_ITEM
@@ -126,9 +187,9 @@ void Controller::checkMode(const MODE mode) try {
     case MODE::TRG:  { [[fallthrough]]; }
     case MODE::DRCT: { break; }
     case MODE::WRD: {
-      throw Exception::createError("Mode wired activated only by hardware switch!");
+      throw Exception::createError("Mode wired may activate only by hardware switch!");
     }
-    default: { throw Exception::createError("Unknown mode!"); }
+    default: { throw Exception::createError("Unknown mode: ", (uint16_t) mode); }
   }
 } defaultCatch
 
@@ -144,7 +205,35 @@ void Controller::checkDirection(const DIR direction) try {
 } defaultCatch
 
 void Controller::runCommand(const CMD cmd) try {
-  RCLCPP_INFO_STREAM(get_logger(), "Start running command: " << getCommandName(cmd));
+  RCLCPP_INFO_STREAM(get_logger(), "Execute command: " << getCommandName(cmd));
+
+  switch (cmd) {
+    case CMD::MODE: { [[fallthrough]]; }
+    case CMD::MOVE: { [[fallthrough]]; }
+    case CMD::SAVE: { [[fallthrough]]; }
+    case CMD::UPDATE: {
+      if (m_isCommandExecuting) {
+        throw Exception::createError(
+            "Can't execute command ", getCommandName(cmd)
+          , " during executing another command!");
+      }
+      break;
+    }
+    case CMD::DIR: {
+      if (MODE::DRCT != m_currentMode) {
+        throw Exception::createError(
+            "Can't execute command ", getCommandName(cmd)
+          , " in mode ", getModeName(m_currentMode)
+          , "! This command execute only in ", getModeName(MODE::DRCT), " mode.");
+      }
+      break;
+    }
+
+    // can execute at any time
+    case CMD::BRAKE: { [[fallthrough]]; }
+    case CMD::STOP:  { break; }
+    default: { throw Exception::createError("Unknown command: ", (uint16_t) cmd); }
+  }
 
   m_modbus->writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
   m_modbus->writeCoils({{COIL::NEW_CMD, true}, {COIL::NEW_STS, false}});
@@ -161,6 +250,7 @@ void Controller::runCommand(const CMD cmd) try {
     if (!isAccepted) {
       isAccepted = !m_modbus->readCoil(COIL::NEW_CMD);
       RCLCPP_DEBUG_STREAM(get_logger(), "Waiting accept... " << ++counter);
+      m_isCommandExecuting = true;
       continue;
     }
 
@@ -177,10 +267,37 @@ void Controller::runCommand(const CMD cmd) try {
   checkStatus(status);
 } defaultCatch
 
+void Controller::restartStatusTimer(const uint16_t rate) try {
+  if (0 == rate) {
+    throw Exception::createError("Invalid update status rate!");
+  }
+  if (rate == m_statusRate) {
+    return;
+  }
+
+  if (nullptr != m_statusTimer) {
+    m_statusTimer->cancel(); // stop old timer
+  }
+
+  const std::chrono::milliseconds pubPeriod(1000 / rate);
+  m_statusTimer = create_wall_timer(
+      pubPeriod
+    , std::bind(&Controller::statusTimerCallback, this)
+    , m_timerCallbackGroup
+  );
+
+  m_statusRate = rate;
+
+  RCLCPP_INFO_STREAM(
+      get_logger()
+    , "Restarted status timer with new rare: " << rate << " hz");
+} defaultCatch
+
 void Controller::brakeSrvCallback(
     [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::Brake::Request> req
   , std::shared_ptr<domabot_interfaces::srv::Brake::Response> res
 ) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "Brake service called.");
   processRequestCommand<domabot_interfaces::srv::Brake>(res, CMD::BRAKE);
 } catch (const std::exception& e) {
   processExceptionCommand<domabot_interfaces::srv::Brake>(res, e);
@@ -190,6 +307,8 @@ void Controller::getDataSrvCallback(
     [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::GetData::Request> req
   , std::shared_ptr<domabot_interfaces::srv::GetData::Response> res
 ) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "GetData service called.");
+
   const Modbus::InputRegistersValues inputRegs = m_modbus->readInputRegisters({
       REG_INP::STS
     , REG_INP::STPR_L
@@ -229,23 +348,26 @@ void Controller::getDataSrvCallback(
   res->direction.direction = holdingRegs.at(REG_HLD::DIR);
 
   auto& settings = res->settings;
-  res->settings.update_rate = holdingRegs.at(REG_HLD::RATE);
+  res->settings.update_rate.push_back(holdingRegs.at(REG_HLD::RATE));
+  restartStatusTimer(holdingRegs.at(REG_HLD::RATE));
 
-  auto& stepper_left = settings.stepper_left;
-  stepper_left.target            = holdingRegs.at(REG_HLD::TARG_L);
-  stepper_left.max_speed         = holdingRegs.at(REG_HLD::MAX_SPD_L);
-  stepper_left.max_acceleration  = holdingRegs.at(REG_HLD::MAX_ACC_L);
-  stepper_left.gear_ratio        = holdingRegs.at(REG_HLD::GEAR_L);
-  stepper_left.wheel_diameter    = holdingRegs.at(REG_HLD::WHEEL_DIAM_L);
-  stepper_left.is_forward        = holdingRegs.at(REG_HLD::IS_FROWARD_L);
+  domabot_interfaces::msg::StepperSettings stepper_left;
+  stepper_left.target          .push_back(holdingRegs.at(REG_HLD::TARG_L));
+  stepper_left.max_speed       .push_back(holdingRegs.at(REG_HLD::MAX_SPD_L));
+  stepper_left.max_acceleration.push_back(holdingRegs.at(REG_HLD::MAX_ACC_L));
+  stepper_left.gear_ratio      .push_back(holdingRegs.at(REG_HLD::GEAR_L));
+  stepper_left.wheel_diameter  .push_back(holdingRegs.at(REG_HLD::WHEEL_DIAM_L));
+  stepper_left.is_forward      .push_back(holdingRegs.at(REG_HLD::IS_FROWARD_L));
+  settings.stepper_left.push_back(stepper_left);
 
-  auto& stepper_right = settings.stepper_right;
-  stepper_right.target           = holdingRegs.at(REG_HLD::TARG_R);
-  stepper_right.max_speed        = holdingRegs.at(REG_HLD::MAX_SPD_R);
-  stepper_right.max_acceleration = holdingRegs.at(REG_HLD::MAX_ACC_R);
-  stepper_right.gear_ratio       = holdingRegs.at(REG_HLD::GEAR_R);
-  stepper_right.wheel_diameter   = holdingRegs.at(REG_HLD::WHEEL_DIAM_R);
-  stepper_right.is_forward       = holdingRegs.at(REG_HLD::IS_FROWARD_R);
+  domabot_interfaces::msg::StepperSettings stepper_right;
+  stepper_right.target          .push_back(holdingRegs.at(REG_HLD::TARG_R));
+  stepper_right.max_speed       .push_back(holdingRegs.at(REG_HLD::MAX_SPD_R));
+  stepper_right.max_acceleration.push_back(holdingRegs.at(REG_HLD::MAX_ACC_R));
+  stepper_right.gear_ratio      .push_back(holdingRegs.at(REG_HLD::GEAR_R));
+  stepper_right.wheel_diameter  .push_back(holdingRegs.at(REG_HLD::WHEEL_DIAM_R));
+  stepper_right.is_forward      .push_back(holdingRegs.at(REG_HLD::IS_FROWARD_R));
+  settings.stepper_left.push_back(stepper_right);
 
   res->response_data.is_success = true;
   res->response_data.error_message = "";
@@ -258,6 +380,8 @@ void Controller::moveSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::Move::Request> req
   , std::shared_ptr<domabot_interfaces::srv::Move::Response> res
 ) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "Move service called.");
+
   m_modbus->writeHoldingRegisters({
       { REG_HLD::TARG_L, (uint16_t) req->target_position_left }
     , { REG_HLD::TARG_R, (uint16_t) req->target_position_right }
@@ -272,10 +396,12 @@ void Controller::setDirectionSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::SetDirection::Request> req
   , std::shared_ptr<domabot_interfaces::srv::SetDirection::Response> res
 ) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "SetDirection service called.");
+
   checkDirection((DIR) req->direction.direction);
   m_modbus->writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
 
-  processRequestCommand<domabot_interfaces::srv::SetDirection>(res, CMD::MODE);
+  processRequestCommand<domabot_interfaces::srv::SetDirection>(res, CMD::DIR);
 } catch (const std::exception& e) {
   processExceptionCommand<domabot_interfaces::srv::SetDirection>(res, e);
 }
@@ -284,6 +410,8 @@ void Controller::setModeSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::SetMode::Request> req
   , std::shared_ptr<domabot_interfaces::srv::SetMode::Response> res
 ) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "SetMode service called.");
+
   checkMode((MODE) req->mode.mode);
   m_modbus->writeHoldingRegister(REG_HLD::MODE, req->mode.mode);
 
@@ -296,29 +424,38 @@ void Controller::setSettingsSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::SetSettings::Request> req
   , std::shared_ptr<domabot_interfaces::srv::SetSettings::Response> res
 ) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "SetSettings service called.");
   Modbus::HoldingRegistersValues holdingRegs;
 
   const auto& settings = req->settings;
-  holdingRegs.emplace(REG_HLD::RATE, settings.update_rate);
+  setRegister(holdingRegs, REG_HLD::RATE, settings.update_rate);
 
-  const auto& stepper_left = settings.stepper_left;
-  holdingRegs.emplace(REG_HLD::TARG_L,       stepper_left.target);
-  holdingRegs.emplace(REG_HLD::MAX_SPD_L,    stepper_left.max_speed);
-  holdingRegs.emplace(REG_HLD::MAX_ACC_L,    stepper_left.max_acceleration);
-  holdingRegs.emplace(REG_HLD::GEAR_L,       stepper_left.gear_ratio);
-  holdingRegs.emplace(REG_HLD::WHEEL_DIAM_L, stepper_left.wheel_diameter);
-  holdingRegs.emplace(REG_HLD::IS_FROWARD_L, stepper_left.is_forward);
+  if (!settings.stepper_left.empty()) {
+    const auto& stepper_left = settings.stepper_left.front();
+    setRegister(holdingRegs, REG_HLD::TARG_L,       stepper_left.target);
+    setRegister(holdingRegs, REG_HLD::MAX_SPD_L,    stepper_left.max_speed);
+    setRegister(holdingRegs, REG_HLD::MAX_ACC_L,    stepper_left.max_acceleration);
+    setRegister(holdingRegs, REG_HLD::GEAR_L,       stepper_left.gear_ratio);
+    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_L, stepper_left.wheel_diameter);
+    setRegister(holdingRegs, REG_HLD::IS_FROWARD_L, stepper_left.is_forward);
+  }
 
-  const auto& stepper_right = settings.stepper_right;
-  holdingRegs.emplace(REG_HLD::TARG_R,       stepper_right.target);
-  holdingRegs.emplace(REG_HLD::MAX_SPD_R,    stepper_right.max_speed);
-  holdingRegs.emplace(REG_HLD::MAX_ACC_R,    stepper_right.max_acceleration);
-  holdingRegs.emplace(REG_HLD::GEAR_R,       stepper_right.gear_ratio);
-  holdingRegs.emplace(REG_HLD::WHEEL_DIAM_R, stepper_right.wheel_diameter);
-  holdingRegs.emplace(REG_HLD::IS_FROWARD_R, stepper_right.is_forward);
+  if (!settings.stepper_right.empty()) {
+    const auto& stepper_right = settings.stepper_right.front();
+    setRegister(holdingRegs, REG_HLD::TARG_R,       stepper_right.target);
+    setRegister(holdingRegs, REG_HLD::MAX_SPD_R,    stepper_right.max_speed);
+    setRegister(holdingRegs, REG_HLD::MAX_ACC_R,    stepper_right.max_acceleration);
+    setRegister(holdingRegs, REG_HLD::GEAR_R,       stepper_right.gear_ratio);
+    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_R, stepper_right.wheel_diameter);
+    setRegister(holdingRegs, REG_HLD::IS_FROWARD_R, stepper_right.is_forward);
+  }
 
   m_modbus->writeHoldingRegisters(holdingRegs);
   processRequestCommand<domabot_interfaces::srv::SetSettings>(res, CMD::UPDATE);
+
+  if (!settings.update_rate.empty()) {
+    restartStatusTimer(settings.update_rate.front());
+  }
 }  catch (const std::exception& e) {
   processExceptionCommand<domabot_interfaces::srv::SetSettings>(res, e);
 }
@@ -327,6 +464,7 @@ void Controller::stopSrvCallback(
     [[maybe_unused]] const std::shared_ptr<domabot_interfaces::srv::Stop::Request> req
   , std::shared_ptr<domabot_interfaces::srv::Stop::Response> res
 ) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "Stop service called.");
   processRequestCommand<domabot_interfaces::srv::Stop>(res, CMD::STOP);
 } catch (const std::exception& e) {
   processExceptionCommand<domabot_interfaces::srv::Stop>(res, e);
@@ -350,7 +488,7 @@ void Controller::statusTimerCallback() try {
 
   m_pubStatus->publish(msg);
 } catch (const std::exception& e) {
-  RCLCPP_INFO_STREAM(get_logger(), e.what());
+  RCLCPP_ERROR_STREAM(get_logger(), e.what());
 }
 
 } // Domabot

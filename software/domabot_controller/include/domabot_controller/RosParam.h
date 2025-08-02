@@ -27,6 +27,7 @@ template<typename T> class RosParam {
     ) try : m_node(node), m_name(name), m_validate(validate) {
       auto descriptor = rcl_interfaces::msg::ParameterDescriptor{};
       descriptor.description = description;
+      descriptor.read_only = true;
 
       m_node.declare_parameter(m_name, defaultValue, descriptor);
     } defaultCatch;
