@@ -30,6 +30,7 @@ Controller::Controller() try : Node("domabot_controller") {
 
   const auto pubRate = holdingRegs.at(REG_HLD::RATE);
   m_currentMode = (MODE) holdingRegs.at(REG_HLD::MODE);
+  checkMode(m_currentMode, true);
 
   m_pubStatus = create_publisher<domabot_interfaces::msg::Status>("status", 1);
 
@@ -132,7 +133,7 @@ const std::string& Controller::getCommandName(const CMD command) try {
     CASE_COMMAND(STOP);
     CASE_COMMAND(UPDATE);
     default: {
-      throw Exception::createError("Unknow command ", (uint16_t) command, "!");
+      throw Exception::createError("Unknow command ", (uint8_t) command, "!");
     }
   }
   #undef CASE_COMMAND
@@ -150,7 +151,7 @@ const std::string& Controller::getStatusName(const STS status) try {
     CASE_STATUS(EMERGENCY);
     CASE_STATUS(ERR_UNKNOWN);
     default: {
-      throw Exception::createError("Unknow status ", (uint16_t) status, "!");
+      throw Exception::createError("Unknow status ", (uint8_t) status, "!");
     }
   }
   #undef CASE_STATUS
@@ -163,7 +164,7 @@ const std::string& Controller::getModeName(const MODE mode) try {
     CASE_MODE(DRCT);
     CASE_MODE(WRD);
     default: {
-      throw Exception::createError("Unknow mode ", (uint16_t) mode, "!");
+      throw Exception::createError("Unknow mode ", (uint8_t) mode, "!");
     }
   }
   #undef CASE_MODE
@@ -171,7 +172,27 @@ const std::string& Controller::getModeName(const MODE mode) try {
 
 #undef CASE_ITEM
 
-void Controller::checkStatus(const STS status) const try {
+void Controller::checkStatus(const STS status, const bool selfCheck) const try {
+  switch (status) {
+    case STS::OK:          { [[fallthrough]]; }
+    case STS::ERR_MOVING:  { [[fallthrough]]; }
+    case STS::ERR_CMD:     { [[fallthrough]]; }
+    case STS::ERR_PARAMS:  { [[fallthrough]]; }
+    case STS::ERR_MODE:    { [[fallthrough]]; }
+    case STS::ERR_DIR:     { [[fallthrough]]; }
+    case STS::EMERGENCY:   { [[fallthrough]]; }
+    case STS::ERR_UNKNOWN: { break; }
+    default: {
+      if (selfCheck) {
+        throw Exception::createError("Unknow status ", (uint8_t) status, "!");
+      }
+    }
+  }
+
+  if (selfCheck) {
+    return;
+  }
+
   const std::string msg = Exception::createMsg("Command execution status: ", getStatusName(status));
   if (STS::OK == status) {
     RCLCPP_INFO_STREAM(get_logger(), msg);
@@ -182,14 +203,17 @@ void Controller::checkStatus(const STS status) const try {
   throw Exception::createError(msg);
 } defaultCatch
 
-void Controller::checkMode(const MODE mode) try {
+void Controller::checkMode(const MODE mode, const bool selfCheck) try {
   switch (mode) {
     case MODE::TRG:  { [[fallthrough]]; }
     case MODE::DRCT: { break; }
     case MODE::WRD: {
-      throw Exception::createError("Mode wired may activate only by hardware switch!");
+      if (!selfCheck) {
+        throw Exception::createError("Mode wired may activate only by hardware switch!");
+      }
+      break;
     }
-    default: { throw Exception::createError("Unknown mode: ", (uint16_t) mode); }
+    default: { throw Exception::createError("Unknown mode: ", (uint8_t) mode); }
   }
 } defaultCatch
 
@@ -200,12 +224,38 @@ void Controller::checkDirection(const DIR direction) try {
     case DIR::LEFT:     { [[fallthrough]]; }
     case DIR::RIGHT:    { [[fallthrough]]; }
     case DIR::STOP:     { break; }
-    default: { throw Exception::createError("Unknown direction!"); }
+    default: { throw Exception::createError("Unknown direction: ", (uint8_t) direction); }
+  }
+} defaultCatch
+
+void Controller::checkStepperStatus(const STPR_STS stepperStatus) try {
+  switch (stepperStatus) {
+    case STPR_STS::STOPPED:               { [[fallthrough]]; }
+    case STPR_STS::MOVING_TO_TARGET:      { [[fallthrough]]; }
+    case STPR_STS::MOVING_TO_PAUSE_POINT: { [[fallthrough]]; }
+    case STPR_STS::MOVING_AT_SPEED:       { [[fallthrough]]; }
+    case STPR_STS::SLOWING_DOWN:          { break; }
+    default: { throw Exception::createError("Unknown stepper status: ", (uint8_t) stepperStatus); }
+  }
+} defaultCatch
+
+void Controller::checkCommand(const CMD command) try {
+  switch (command) {
+    case CMD::BRAKE:  { [[fallthrough]]; }
+    case CMD::STOP:   { [[fallthrough]]; }
+    case CMD::MOVE:   { [[fallthrough]]; }
+    case CMD::UPDATE: { [[fallthrough]]; }
+    case CMD::SAVE:   { [[fallthrough]]; }
+    case CMD::MODE:   { [[fallthrough]]; }
+    case CMD::DIR:    { break; }
+    default: { throw Exception::createError("Unknown command: ", (uint8_t) command); }
   }
 } defaultCatch
 
 void Controller::runCommand(const CMD cmd) try {
   RCLCPP_INFO_STREAM(get_logger(), "Execute command: " << getCommandName(cmd));
+
+  checkCommand(cmd);
 
   switch (cmd) {
     case CMD::MODE: { [[fallthrough]]; }
@@ -230,9 +280,8 @@ void Controller::runCommand(const CMD cmd) try {
     }
 
     // can execute at any time
-    case CMD::BRAKE: { [[fallthrough]]; }
-    case CMD::STOP:  { break; }
-    default: { throw Exception::createError("Unknown command: ", (uint16_t) cmd); }
+    case CMD::BRAKE: { break; }
+    case CMD::STOP: { break; }
   }
 
   m_modbus->writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
@@ -248,10 +297,15 @@ void Controller::runCommand(const CMD cmd) try {
     loopRate.sleep();
 
     if (!isAccepted) {
+      if (counter >= 5) {
+        throw Exception::createError("Microcontroller does not accept command within ", counter, " attempts!");
+      }
       isAccepted = !m_modbus->readCoil(COIL::NEW_CMD);
       RCLCPP_DEBUG_STREAM(get_logger(), "Waiting accept... " << ++counter);
       m_isCommandExecuting = true;
-      continue;
+      if (!isAccepted) {
+        continue;
+      }
     }
 
     isCompleted = m_modbus->readCoil(COIL::NEW_STS);
@@ -335,6 +389,15 @@ void Controller::getDataSrvCallback(
     , REG_HLD::MODE
     , REG_HLD::DIR
   });
+
+  checkStatus((STS) inputRegs.at(REG_INP::STS), true);
+
+  checkCommand((CMD) holdingRegs.at(REG_HLD::CMD));
+  checkMode((MODE) holdingRegs.at(REG_HLD::MODE), true);
+  checkDirection((DIR) holdingRegs.at(REG_HLD::DIR));
+
+  checkStepperStatus((STPR_STS) inputRegs.at(REG_INP::STPR_L));
+  checkStepperStatus((STPR_STS) inputRegs.at(REG_INP::STPR_R));
 
   auto& status = res->status;
   status.controller.status      = inputRegs.at(REG_INP::STS);
@@ -428,25 +491,25 @@ void Controller::setSettingsSrvCallback(
   Modbus::HoldingRegistersValues holdingRegs;
 
   const auto& settings = req->settings;
-  setRegister(holdingRegs, REG_HLD::RATE, settings.update_rate);
+  setRegister(holdingRegs, REG_HLD::RATE, settings.update_rate, "update_rate", true);
 
   if (!settings.stepper_left.empty()) {
     const auto& stepper_left = settings.stepper_left.front();
     setRegister(holdingRegs, REG_HLD::TARG_L,       stepper_left.target);
-    setRegister(holdingRegs, REG_HLD::MAX_SPD_L,    stepper_left.max_speed);
-    setRegister(holdingRegs, REG_HLD::MAX_ACC_L,    stepper_left.max_acceleration);
-    setRegister(holdingRegs, REG_HLD::GEAR_L,       stepper_left.gear_ratio);
-    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_L, stepper_left.wheel_diameter);
+    setRegister(holdingRegs, REG_HLD::MAX_SPD_L,    stepper_left.max_speed,        "stepper_left.max_speed",        true);
+    setRegister(holdingRegs, REG_HLD::MAX_ACC_L,    stepper_left.max_acceleration, "stepper_left.max_acceleration", true);
+    setRegister(holdingRegs, REG_HLD::GEAR_L,       stepper_left.gear_ratio,       "stepper_left.gear_ratio",       true);
+    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_L, stepper_left.wheel_diameter,   "stepper_left.wheel_diameter",   true);
     setRegister(holdingRegs, REG_HLD::IS_FROWARD_L, stepper_left.is_forward);
   }
 
   if (!settings.stepper_right.empty()) {
     const auto& stepper_right = settings.stepper_right.front();
     setRegister(holdingRegs, REG_HLD::TARG_R,       stepper_right.target);
-    setRegister(holdingRegs, REG_HLD::MAX_SPD_R,    stepper_right.max_speed);
-    setRegister(holdingRegs, REG_HLD::MAX_ACC_R,    stepper_right.max_acceleration);
-    setRegister(holdingRegs, REG_HLD::GEAR_R,       stepper_right.gear_ratio);
-    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_R, stepper_right.wheel_diameter);
+    setRegister(holdingRegs, REG_HLD::MAX_SPD_R,    stepper_right.max_speed,        "stepper_right.max_speed",        true);
+    setRegister(holdingRegs, REG_HLD::MAX_ACC_R,    stepper_right.max_acceleration, "stepper_right.max_acceleration", true);
+    setRegister(holdingRegs, REG_HLD::GEAR_R,       stepper_right.gear_ratio,       "stepper_right.gear_ratio",       true);
+    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_R, stepper_right.wheel_diameter,   "stepper_right.wheel_diameter",   true);
     setRegister(holdingRegs, REG_HLD::IS_FROWARD_R, stepper_right.is_forward);
   }
 

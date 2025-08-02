@@ -108,6 +108,18 @@ enum class DIR : uint8_t {
 };
 
 /**
+ * @brief Stepper status
+ *
+ */
+enum class STPR_STS : uint8_t {
+  STOPPED                = 0,
+  MOVING_TO_TARGET       = 1,
+  MOVING_TO_PAUSE_POINT  = 2,
+  MOVING_AT_SPEED        = 3,
+  SLOWING_DOWN           = 4
+};
+
+/**
  * @brief Stepper motor data stored in EEPROM memory
  *
  */

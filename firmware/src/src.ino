@@ -343,6 +343,12 @@ void processCommand() {
         stepperData.wheelDiamMm = holdingRegisterRead((REG_HLD)(baseIndex + 3)); // 7 12
         stepperData.isForward   = holdingRegisterRead((REG_HLD)(baseIndex + 4)); // 8 13
 
+        if (0 == stepperData.maxSpeedMms) {
+          status = STS::ERR_PARAMS;
+        }
+        if (0 == stepperData.maxAccMms2) {
+          status = STS::ERR_PARAMS;
+        }
         if (0 == stepperData.gearRatio) {
           status = STS::ERR_PARAMS;
         }

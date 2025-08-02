@@ -48,9 +48,11 @@ class Controller : public rclcpp::Node {
     static const std::string& getStatusName(const STS status);
     static const std::string& getModeName(const MODE mode);
 
-    void checkStatus(const STS status) const;
-    static void checkMode(const MODE mode);
+    void checkStatus(const STS status, const bool selfCheck = false) const;
+    static void checkMode(const MODE mode, const bool selfCheck = false);
     static void checkDirection(const DIR direction);
+    static void checkStepperStatus(const STPR_STS stepperStatus);
+    static void checkCommand(const CMD command);
 
     void runCommand(const CMD cmd);
 
@@ -82,8 +84,13 @@ class Controller : public rclcpp::Node {
         Modbus::HoldingRegistersValues& holdingRegs
       , const REG_HLD address
       , const Container& container
+      , const std::string& name = ""
+      , const bool validateAboveZero = false
     ) try {
       if (!container.empty()) {
+        if (validateAboveZero && 0 == container.front()) {
+          throw Exception::createError(name, " must be above zero!");
+        }
         holdingRegs.emplace(address, container.front());
       }
     } defaultCatch
