@@ -9,6 +9,7 @@
 #include <domabot_interfaces/srv/brake.hpp>
 #include <domabot_interfaces/srv/get_data.hpp>
 #include <domabot_interfaces/srv/move.hpp>
+#include <domabot_interfaces/srv/save_settings.hpp>
 #include <domabot_interfaces/srv/set_direction.hpp>
 #include <domabot_interfaces/srv/set_mode.hpp>
 #include <domabot_interfaces/srv/set_settings.hpp>
@@ -32,6 +33,7 @@ class Controller : public rclcpp::Node {
     rclcpp::Service<domabot_interfaces::srv::Brake>::SharedPtr m_srvBrake = nullptr;
     rclcpp::Service<domabot_interfaces::srv::GetData>::SharedPtr m_srvGetData = nullptr;
     rclcpp::Service<domabot_interfaces::srv::Move>::SharedPtr m_srvMove = nullptr;
+    rclcpp::Service<domabot_interfaces::srv::SaveSettings>::SharedPtr m_srvSaveSettings = nullptr;
     rclcpp::Service<domabot_interfaces::srv::SetDirection>::SharedPtr m_srvSetDirection = nullptr;
     rclcpp::Service<domabot_interfaces::srv::SetMode>::SharedPtr m_srvSetMode = nullptr;
     rclcpp::Service<domabot_interfaces::srv::SetSettings>::SharedPtr m_srvSetSettings = nullptr;
@@ -53,6 +55,9 @@ class Controller : public rclcpp::Node {
     static void checkDirection(const DIR direction);
     static void checkStepperStatus(const STPR_STS stepperStatus);
     static void checkCommand(const CMD command);
+
+    void setSettingsToRegisters(
+      const domabot_interfaces::msg::ControllerSettings& settings);
 
     void runCommand(const CMD cmd);
 
@@ -106,6 +111,9 @@ class Controller : public rclcpp::Node {
     void moveSrvCallback(
         const std::shared_ptr<domabot_interfaces::srv::Move::Request> req
       , std::shared_ptr<domabot_interfaces::srv::Move::Response> res);
+    void saveSettingsSrvCallback(
+        const std::shared_ptr<domabot_interfaces::srv::SaveSettings::Request> req
+      , std::shared_ptr<domabot_interfaces::srv::SaveSettings::Response> res);
     void setDirectionSrvCallback(
         const std::shared_ptr<domabot_interfaces::srv::SetDirection::Request> req
       , std::shared_ptr<domabot_interfaces::srv::SetDirection::Response> res);

@@ -63,6 +63,14 @@ Controller::Controller() try : Node("domabot_controller") {
     , rcl_service_get_default_options().qos
     , serviceCallbackGroup
   );
+  m_srvSaveSettings = create_service<domabot_interfaces::srv::SaveSettings>(
+      "save_settings"
+    , std::bind(
+        &Controller::saveSettingsSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , serviceCallbackGroup
+  );
   m_srvSetDirection = create_service<domabot_interfaces::srv::SetDirection>(
       "set_direction"
     , std::bind(
@@ -112,8 +120,8 @@ Controller::Controller() try : Node("domabot_controller") {
       runCommand(CMD::DIR);
       break;
     }
-    case MODE::WRD: { [[fallthrough]]; }
-    default: { break; }
+    case MODE::WRD: { break; }
+    default:        { break; }
   }
 } defaultCatch
 
@@ -174,13 +182,13 @@ const std::string& Controller::getModeName(const MODE mode) try {
 
 void Controller::checkStatus(const STS status, const bool selfCheck) const try {
   switch (status) {
-    case STS::OK:          { [[fallthrough]]; }
-    case STS::ERR_MOVING:  { [[fallthrough]]; }
-    case STS::ERR_CMD:     { [[fallthrough]]; }
-    case STS::ERR_PARAMS:  { [[fallthrough]]; }
-    case STS::ERR_MODE:    { [[fallthrough]]; }
-    case STS::ERR_DIR:     { [[fallthrough]]; }
-    case STS::EMERGENCY:   { [[fallthrough]]; }
+    case STS::OK:          { break; }
+    case STS::ERR_MOVING:  { break; }
+    case STS::ERR_CMD:     { break; }
+    case STS::ERR_PARAMS:  { break; }
+    case STS::ERR_MODE:    { break; }
+    case STS::ERR_DIR:     { break; }
+    case STS::EMERGENCY:   { break; }
     case STS::ERR_UNKNOWN: { break; }
     default: {
       if (selfCheck) {
@@ -205,7 +213,7 @@ void Controller::checkStatus(const STS status, const bool selfCheck) const try {
 
 void Controller::checkMode(const MODE mode, const bool selfCheck) try {
   switch (mode) {
-    case MODE::TRG:  { [[fallthrough]]; }
+    case MODE::TRG:  { break; }
     case MODE::DRCT: { break; }
     case MODE::WRD: {
       if (!selfCheck) {
@@ -219,10 +227,10 @@ void Controller::checkMode(const MODE mode, const bool selfCheck) try {
 
 void Controller::checkDirection(const DIR direction) try {
   switch (direction) {
-    case DIR::BACKWARD: { [[fallthrough]]; }
-    case DIR::FORWARD:  { [[fallthrough]]; }
-    case DIR::LEFT:     { [[fallthrough]]; }
-    case DIR::RIGHT:    { [[fallthrough]]; }
+    case DIR::BACKWARD: { break; }
+    case DIR::FORWARD:  { break; }
+    case DIR::LEFT:     { break; }
+    case DIR::RIGHT:    { break; }
     case DIR::STOP:     { break; }
     default: { throw Exception::createError("Unknown direction: ", (uint8_t) direction); }
   }
@@ -230,10 +238,10 @@ void Controller::checkDirection(const DIR direction) try {
 
 void Controller::checkStepperStatus(const STPR_STS stepperStatus) try {
   switch (stepperStatus) {
-    case STPR_STS::STOPPED:               { [[fallthrough]]; }
-    case STPR_STS::MOVING_TO_TARGET:      { [[fallthrough]]; }
-    case STPR_STS::MOVING_TO_PAUSE_POINT: { [[fallthrough]]; }
-    case STPR_STS::MOVING_AT_SPEED:       { [[fallthrough]]; }
+    case STPR_STS::STOPPED:               { break; }
+    case STPR_STS::MOVING_TO_TARGET:      { break; }
+    case STPR_STS::MOVING_TO_PAUSE_POINT: { break; }
+    case STPR_STS::MOVING_AT_SPEED:       { break; }
     case STPR_STS::SLOWING_DOWN:          { break; }
     default: { throw Exception::createError("Unknown stepper status: ", (uint8_t) stepperStatus); }
   }
@@ -241,15 +249,44 @@ void Controller::checkStepperStatus(const STPR_STS stepperStatus) try {
 
 void Controller::checkCommand(const CMD command) try {
   switch (command) {
-    case CMD::BRAKE:  { [[fallthrough]]; }
-    case CMD::STOP:   { [[fallthrough]]; }
-    case CMD::MOVE:   { [[fallthrough]]; }
-    case CMD::UPDATE: { [[fallthrough]]; }
-    case CMD::SAVE:   { [[fallthrough]]; }
-    case CMD::MODE:   { [[fallthrough]]; }
+    case CMD::BRAKE:  { break; }
+    case CMD::STOP:   { break; }
+    case CMD::MOVE:   { break; }
+    case CMD::UPDATE: { break; }
+    case CMD::SAVE:   { break; }
+    case CMD::MODE:   { break; }
     case CMD::DIR:    { break; }
     default: { throw Exception::createError("Unknown command: ", (uint8_t) command); }
   }
+} defaultCatch
+
+void Controller::setSettingsToRegisters(
+      const domabot_interfaces::msg::ControllerSettings& settings) try {
+  Modbus::HoldingRegistersValues holdingRegs;
+
+  setRegister(holdingRegs, REG_HLD::RATE, settings.update_rate, "update_rate", true);
+
+  if (!settings.stepper_left.empty()) {
+    const auto& stepper_left = settings.stepper_left.front();
+    setRegister(holdingRegs, REG_HLD::TARG_L,       stepper_left.target);
+    setRegister(holdingRegs, REG_HLD::MAX_SPD_L,    stepper_left.max_speed,        "stepper_left.max_speed",        true);
+    setRegister(holdingRegs, REG_HLD::MAX_ACC_L,    stepper_left.max_acceleration, "stepper_left.max_acceleration", true);
+    setRegister(holdingRegs, REG_HLD::GEAR_L,       stepper_left.gear_ratio,       "stepper_left.gear_ratio",       true);
+    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_L, stepper_left.wheel_diameter,   "stepper_left.wheel_diameter",   true);
+    setRegister(holdingRegs, REG_HLD::IS_FROWARD_L, stepper_left.is_forward);
+  }
+
+  if (!settings.stepper_right.empty()) {
+    const auto& stepper_right = settings.stepper_right.front();
+    setRegister(holdingRegs, REG_HLD::TARG_R,       stepper_right.target);
+    setRegister(holdingRegs, REG_HLD::MAX_SPD_R,    stepper_right.max_speed,        "stepper_right.max_speed",        true);
+    setRegister(holdingRegs, REG_HLD::MAX_ACC_R,    stepper_right.max_acceleration, "stepper_right.max_acceleration", true);
+    setRegister(holdingRegs, REG_HLD::GEAR_R,       stepper_right.gear_ratio,       "stepper_right.gear_ratio",       true);
+    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_R, stepper_right.wheel_diameter,   "stepper_right.wheel_diameter",   true);
+    setRegister(holdingRegs, REG_HLD::IS_FROWARD_R, stepper_right.is_forward);
+  }
+
+  m_modbus->writeHoldingRegisters(holdingRegs);
 } defaultCatch
 
 void Controller::runCommand(const CMD cmd) try {
@@ -281,7 +318,7 @@ void Controller::runCommand(const CMD cmd) try {
 
     // can execute at any time
     case CMD::BRAKE: { break; }
-    case CMD::STOP: { break; }
+    case CMD::STOP:  { break; }
   }
 
   m_modbus->writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
@@ -455,6 +492,28 @@ void Controller::moveSrvCallback(
   processExceptionCommand<domabot_interfaces::srv::Move>(res, e);
 }
 
+void Controller::saveSettingsSrvCallback(
+    const std::shared_ptr<domabot_interfaces::srv::SaveSettings::Request> req
+  , std::shared_ptr<domabot_interfaces::srv::SaveSettings::Response> res
+) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "SaveSettings service called.");
+
+  const auto& settings = req->settings;
+  if (!settings.empty()) {
+    setSettingsToRegisters(settings.front());
+  }
+
+  processRequestCommand<domabot_interfaces::srv::SaveSettings>(res, CMD::SAVE);
+
+  if (!settings.empty()) {
+    if (!settings.front().update_rate.empty()) {
+      restartStatusTimer(settings.front().update_rate.front());
+    }
+  }
+}  catch (const std::exception& e) {
+  processExceptionCommand<domabot_interfaces::srv::SaveSettings>(res, e);
+}
+
 void Controller::setDirectionSrvCallback(
     const std::shared_ptr<domabot_interfaces::srv::SetDirection::Request> req
   , std::shared_ptr<domabot_interfaces::srv::SetDirection::Response> res
@@ -488,32 +547,10 @@ void Controller::setSettingsSrvCallback(
   , std::shared_ptr<domabot_interfaces::srv::SetSettings::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "SetSettings service called.");
-  Modbus::HoldingRegistersValues holdingRegs;
 
   const auto& settings = req->settings;
-  setRegister(holdingRegs, REG_HLD::RATE, settings.update_rate, "update_rate", true);
+  setSettingsToRegisters(settings);
 
-  if (!settings.stepper_left.empty()) {
-    const auto& stepper_left = settings.stepper_left.front();
-    setRegister(holdingRegs, REG_HLD::TARG_L,       stepper_left.target);
-    setRegister(holdingRegs, REG_HLD::MAX_SPD_L,    stepper_left.max_speed,        "stepper_left.max_speed",        true);
-    setRegister(holdingRegs, REG_HLD::MAX_ACC_L,    stepper_left.max_acceleration, "stepper_left.max_acceleration", true);
-    setRegister(holdingRegs, REG_HLD::GEAR_L,       stepper_left.gear_ratio,       "stepper_left.gear_ratio",       true);
-    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_L, stepper_left.wheel_diameter,   "stepper_left.wheel_diameter",   true);
-    setRegister(holdingRegs, REG_HLD::IS_FROWARD_L, stepper_left.is_forward);
-  }
-
-  if (!settings.stepper_right.empty()) {
-    const auto& stepper_right = settings.stepper_right.front();
-    setRegister(holdingRegs, REG_HLD::TARG_R,       stepper_right.target);
-    setRegister(holdingRegs, REG_HLD::MAX_SPD_R,    stepper_right.max_speed,        "stepper_right.max_speed",        true);
-    setRegister(holdingRegs, REG_HLD::MAX_ACC_R,    stepper_right.max_acceleration, "stepper_right.max_acceleration", true);
-    setRegister(holdingRegs, REG_HLD::GEAR_R,       stepper_right.gear_ratio,       "stepper_right.gear_ratio",       true);
-    setRegister(holdingRegs, REG_HLD::WHEEL_DIAM_R, stepper_right.wheel_diameter,   "stepper_right.wheel_diameter",   true);
-    setRegister(holdingRegs, REG_HLD::IS_FROWARD_R, stepper_right.is_forward);
-  }
-
-  m_modbus->writeHoldingRegisters(holdingRegs);
   processRequestCommand<domabot_interfaces::srv::SetSettings>(res, CMD::UPDATE);
 
   if (!settings.update_rate.empty()) {
