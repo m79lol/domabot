@@ -10,13 +10,11 @@
 
 #include <math.h>
 
-#define FIRMWARE_VERSION 1
+#define FIRMWARE_VERSION 1 ///< update with every firmware release
 
 #define SERIAL_BAUD_RATE 9600
 
-#define STEPS_REV 1600 // must be above zero
-static_assert(0 < STEPS_REV);
-
+// PINS assignation
 #define MOTOR_L_STEP_PIN 11
 #define MOTOR_L_DIR_PIN  12
 #define MOTOR_L_EN_PIN   13
@@ -32,6 +30,33 @@ static_assert(0 < STEPS_REV);
 #define DIR_LEFT_PIN        9999999
 
 #define EMERGENCY_STOP_PIN  9999999
+// end PINS
+
+#define STEPS_REV 1600 // must be above zero
+static_assert(0 < STEPS_REV);
+
+#define MOTOR_CNT 2 // always
+
+/**
+ * @brief Stepper motor data stored in EEPROM memory
+ *
+ */
+struct StepperData {
+  uint16_t maxSpeedMms = 110;
+  uint16_t maxAccMms2 = 55;
+  uint16_t gearRatio = uint16_t(85.0 / 24.0 * 1000.0); // Z-driven / Z-leading * precision = 3541
+  uint8_t wheelDiamMm = 200;
+  uint8_t isForward = 1; // must zero for L motor, index 0
+};
+
+/**
+ * @brief Controller data stored in EEPROM memory
+ *
+ */
+struct ControllerData {
+  StepperData stepperData[MOTOR_CNT]; // left is 0, right is 1
+  uint16_t updateRateHz = 50; // for Modbus Input Registers
+};
 
 MODE mode = MODE::TRG;
 DIR direction = DIR::STOP;
