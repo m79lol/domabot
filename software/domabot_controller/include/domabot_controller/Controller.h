@@ -1,8 +1,9 @@
 #ifndef Domabot_Controller_h
 #define Domabot_Controller_h
 
-#include <domabot_controller/Exception.h>
 #include <domabot_controller/Modbus.h>
+
+#include <domabot_common_lib/Exception.h>
 
 #include <domabot_interfaces/msg/status.hpp>
 

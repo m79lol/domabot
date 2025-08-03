@@ -1,8 +1,9 @@
 #ifndef Domabot_RosService_h
 #define Domabot_RosService_h
 
-#include <rtk_common/Exceptions/CException.h>
-#include <ros/ros.h>
+#include <domabot_common_lib/Exception.h>
+
+#include <rclcpp/rclcpp.hpp>
 
 #include <stdexcept>
 

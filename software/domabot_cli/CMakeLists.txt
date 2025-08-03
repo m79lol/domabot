@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(domabot_controller)
+project(domabot_cli)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -14,9 +14,7 @@ find_package(domabot_common_lib REQUIRED)
 
 add_executable(${PROJECT_NAME}
   src/${PROJECT_NAME}.cpp
-  src/Controller.cpp
-  src/ControllerParams.cpp
-  src/Modbus.cpp
+  src/CLI.cpp
 )
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
@@ -26,13 +24,10 @@ ament_target_dependencies(${PROJECT_NAME}
 
 include_directories(
   include
-  "../../firmware/include"
-  "/usr/include/modbus"
   ${domabot_common_lib_INCLUDE_DIRS}
 )
 
 target_link_libraries(${PROJECT_NAME}
-  modbus
   domabot_common_lib::domabot_common_lib
 )
 

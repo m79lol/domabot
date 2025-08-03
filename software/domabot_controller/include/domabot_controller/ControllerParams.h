@@ -1,7 +1,7 @@
 #ifndef Domabot_ControllerParams_h
 #define Domabot_ControllerParams_h
 
-#include <domabot_controller/Exception.h>
+#include <domabot_common_lib/Exception.h>
 
 #include <rclcpp/rclcpp.hpp>
 

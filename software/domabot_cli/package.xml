@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>domabot_controller</name>
+  <name>domabot_cli</name>
   <version>0.0.1</version>
-  <description>The movement controller for domabot robot</description>
+  <description>The command line interface for Domabot controller node</description>
   <maintainer email="i@tulkin.name">m79lol</maintainer>
   <license>GPL-3.0 license</license>
 
@@ -14,6 +14,7 @@
   <depend>rclcpp_components</depend>
   <depend>domabot_interfaces</depend>
   <depend>domabot_common_lib</depend>
+  <depend>domabot_controller</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

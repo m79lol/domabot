@@ -1,3 +1,9 @@
+/*!
+\file
+\brief Main firmware source file
+
+Contains firmware C++ code for microcontrolher based Arduino Mega2560.
+*/
 
 #include "domabot_firmware/firmware_data_types.h"
 

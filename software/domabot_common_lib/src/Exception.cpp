@@ -1,5 +1,5 @@
 
-#include <domabot_controller/Exception.h>
+#include <domabot_common_lib/Exception.h>
 
 namespace Domabot {
 

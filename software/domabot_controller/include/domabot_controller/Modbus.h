@@ -1,7 +1,7 @@
 #ifndef Domabot_Modbus_h
 #define Domabot_Modbus_h
 
-#include <domabot_controller/Exception.h>
+#include <domabot_common_lib/Exception.h>
 
 #include <domabot_firmware/firmware_data_types.h>
 

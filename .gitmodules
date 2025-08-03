@@ -13,3 +13,6 @@
 [submodule "software/other/libmodbus"]
 	path = software/other/libmodbus
 	url = https://github.com/stephane/libmodbus.git
+[submodule "software/other/FTXUI"]
+	path = software/other/FTXUI
+	url = https://github.com/ArthurSonzogni/FTXUI.git
