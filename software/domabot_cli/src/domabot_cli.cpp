@@ -6,7 +6,18 @@
 
 int main(int argc, char * argv[]) try {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<Domabot::CLI>());
+
+  const Domabot::CLI::Ptr node = std::make_shared<Domabot::CLI>();
+  rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 2);
+  executor.add_node(node);
+
+  std::thread spinThread([&executor]() {
+      executor.spin();
+  });
+
+  node->runCLI();
+
+  spinThread.join();
   rclcpp::shutdown();
   return 0;
 } catch (const std::exception& e) {

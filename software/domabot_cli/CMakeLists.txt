@@ -15,6 +15,7 @@ find_package(domabot_common_lib REQUIRED)
 add_executable(${PROJECT_NAME}
   src/${PROJECT_NAME}.cpp
   src/CLI.cpp
+  src/UserInteraction.cpp
 )
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp

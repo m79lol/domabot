@@ -6,7 +6,6 @@
 #include <domabot_common_lib/Exception.h>
 
 #include <domabot_interfaces/msg/status.hpp>
-
 #include <domabot_interfaces/srv/brake.hpp>
 #include <domabot_interfaces/srv/get_data.hpp>
 #include <domabot_interfaces/srv/move.hpp>
