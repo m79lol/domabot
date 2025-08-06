@@ -1,3 +1,7 @@
+/**
+ * @file
+ * @brief Domabot CLI node class header file.
+*/
 #ifndef Domabot_CLI_h
 #define Domabot_CLI_h
 
@@ -19,14 +23,22 @@
 
 namespace Domabot {
 
+/**
+ * @brief Domabot CLI Node class.
+ *
+ * @details Inherits Node ROS class, implements ROS node and process both
+ * ROS & CLI (command line interface) interfaces.
+  */
 class CLI : public rclcpp::Node {
-  public:
+  public: // pointer's short cuts
     using Ptr = std::shared_ptr<CLI>;
     using CnstPtr = std::shared_ptr<const CLI>;
 
   protected:
+    // topic subscribers for domabot controller node
     rclcpp::Subscription<domabot_interfaces::msg::Status>::SharedPtr m_subStatus = nullptr;
 
+    // service clients for domabot controller node
     rclcpp::Client<domabot_interfaces::srv::Brake>::SharedPtr m_clientBrake               = nullptr;
     rclcpp::Client<domabot_interfaces::srv::GetData>::SharedPtr m_clientGetData           = nullptr;
     rclcpp::Client<domabot_interfaces::srv::Move>::SharedPtr m_clientMove                 = nullptr;
@@ -36,9 +48,15 @@ class CLI : public rclcpp::Node {
     rclcpp::Client<domabot_interfaces::srv::SetSettings>::SharedPtr m_clientSetSettings   = nullptr;
     rclcpp::Client<domabot_interfaces::srv::Stop>::SharedPtr m_clientStop                 = nullptr;
 
-    domabot_interfaces::msg::Status m_msgLastStatus;
+    domabot_interfaces::msg::Status m_msgLastStatus; ///< To transfer msg between subscriber and main threads
     std::mutex m_mtxLastStatus;
 
+    /**
+     * @brief Receive status message callback.
+     * @details Calls on every message received by subscriber.
+     *
+     * @param[in] msg Controller status message.
+     */
     void statusCallback(const domabot_interfaces::msg::Status& msg);
 
   public:
@@ -51,6 +69,9 @@ class CLI : public rclcpp::Node {
 
     virtual ~CLI() = default;
 
+    /**
+     * @brief Main method for processing command line interface.
+     */
     void runCLI();
 
 }; // CLI

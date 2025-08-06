@@ -1,8 +1,7 @@
-/*!
-\file
-\brief Main firmware source file
-
-Contains firmware C++ code for microcontrolher based Arduino Mega2560.
+/**
+ * @file
+ * @brief Main firmware source file.
+ * @details Contains firmware C++ code for microcontrolher based Arduino Mega2560.
 */
 
 #include "domabot_firmware/firmware_data_types.h"
@@ -44,8 +43,7 @@ static_assert(0 < STEPS_REV);
 #define MOTOR_CNT 2 // always
 
 /**
- * @brief Stepper motor data stored in EEPROM memory
- *
+ * @brief Stepper motor data stored in EEPROM memory.
  */
 struct StepperData {
   uint16_t maxSpeedMms = 110;
@@ -56,14 +54,14 @@ struct StepperData {
 };
 
 /**
- * @brief Controller data stored in EEPROM memory
- *
+ * @brief Controller data stored in EEPROM memory.
  */
 struct ControllerData {
   StepperData stepperData[MOTOR_CNT]; // left is 0, right is 1
   uint16_t updateRateHz = 50; // for Modbus Input Registers
 };
 
+uint8_t isSteppersMoving = 0;
 MODE mode = MODE::TRG;
 DIR direction = DIR::STOP;
 const ControllerData defaultControllerData;
@@ -85,34 +83,65 @@ GStepper2<STEPPER2WIRE> steppers[MOTOR_CNT] = {
   )
 };
 
-uint8_t isSteppersMoving = 0;
-
+/**
+ * @brief Modbus holding register read wrapper.
+ *
+ * @param[in] address Address of holding register.
+ * @return long Register value.
+ */
 long holdingRegisterRead(const REG_HLD address) {
   return ModbusRTUServer.holdingRegisterRead((int) address);
 }
 
+/**
+ * @brief Modbus holding register write wrapper.
+ *
+ * @param[in] address Address of holding register.
+ * @param[in] value Value to write.
+ * @return int 1 for success, 0 for fail.
+ */
 int holdingRegisterWrite(const REG_HLD address, const uint16_t value) {
   return ModbusRTUServer.holdingRegisterWrite((int) address, value);
 }
 
+/**
+ * @brief Modbus input register write wrapper.
+ *
+ * @param[in] address Address of input register.
+ * @param[in] value Value to write.
+ * @return int 1 for success, 0 for fail.
+ */
 int inputRegisterWrite(const REG_INP address, const uint16_t value) {
   return ModbusRTUServer.inputRegisterWrite((int) address, value);
 }
 
+/**
+ * @brief Modbus coil write wrapper.
+ *
+ * @param[in] address Address of coil.
+ * @param[in] value Value to write.
+ * @return int 1 for success, 0 for fail.
+ */
 int coilWrite(const COIL address, const uint8_t value) {
   return ModbusRTUServer.coilWrite((int) address, value);
 }
 
+/**
+ * @brief Modbus coil read wrapper.
+ *
+ * @param[in] address Address of coil.
+ * @return bool Returned value.
+ */
 bool coilRead(const COIL address) {
   return 0 != ModbusRTUServer.coilRead((int) address);
 }
 
 /**
- * @brief Convert distance in mm to motor steps
+ * @brief Convert distance in mm to motor steps.
  *
- * @param stepperData actual stepper
- * @param distance in mm
- * @return int32_t steps count
+ * @param[in] stepperData actual stepper.
+ * @param[in] distance in mm.
+ * @return int32_t Steps count.
  */
 int32_t mmToSteps(const StepperData& stepperData, const int16_t distance) {
   if (0 == stepperData.wheelDiamMm) {
@@ -125,11 +154,11 @@ int32_t mmToSteps(const StepperData& stepperData, const int16_t distance) {
 }
 
 /**
- * @brief Convert motor steps to distance in mm
+ * @brief Convert motor steps to distance in mm.
  *
- * @param stepperData actual stepper
- * @param steps count
- * @return int16_t distance
+ * @param[in] stepperData Actual stepper.
+ * @param[in] steps Count steps.
+ * @return int16_t Distance.
  */
 int16_t stepsToMm(const StepperData& stepperData, const int32_t steps) {
   if (0 == STEPS_REV || 0 == stepperData.gearRatio) {
@@ -143,8 +172,7 @@ int16_t stepsToMm(const StepperData& stepperData, const int32_t steps) {
 }
 
 /**
- * @brief Re-Init steppers by actual stepper data
- *
+ * @brief Re-Init steppers by actual stepper data.
  */
 void initSteppers() {
   static bool isSteppersInited = false;
@@ -171,9 +199,9 @@ void initSteppers() {
 }
 
 /**
- * @brief Update Modbus data by finished command
+ * @brief Update Modbus data by finished command.
  *
- * @param status STS status to output in Modbus status register
+ * @param[in] status STS status to output in Modbus status register.
  */
 void updateStatus(const STS status) {
   inputRegisterWrite(REG_INP::STS, (uint16_t) status);
@@ -181,9 +209,9 @@ void updateStatus(const STS status) {
 }
 
 /**
- * @brief Complete Modbus command execution by full stop & status output
+ * @brief Complete Modbus command execution by full stop & status output.
  *
- * @param status STS status of command execution
+ * @param[in] status STS status of command execution.
  */
 void completeCommand(const STS status) {
   holdingRegisterWrite(REG_HLD::CMD, (uint16_t) CMD::BRAKE);
@@ -191,9 +219,9 @@ void completeCommand(const STS status) {
 }
 
 /**
- * @brief Load controller data from EEPROM memory
+ * @brief Load controller data from EEPROM memory.
  *
- * @return uint8_t exit code
+ * @return uint8_t Exit code.
  */
 uint8_t loadFromMemory() {
   const uint8_t res = memory.begin(0, FIRMWARE_VERSION);
@@ -226,8 +254,7 @@ uint8_t loadFromMemory() {
 }
 
 /**
- * @brief Detect command by Modbus & execute it
- *
+ * @brief Detect command by Modbus & execute it.
  */
 void processDirection() {
   for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
@@ -265,8 +292,7 @@ void processDirection() {
 }
 
 /**
- * @brief Detect command by Modbus & execute it
- *
+ * @brief Detect command by Modbus & execute it.
  */
 void processCommand() {
   const int packetReceived = ModbusRTUServer.poll();
@@ -405,9 +431,9 @@ void processCommand() {
 }
 
 /**
- * @brief Execute emergency stop motors
+ * @brief Execute emergency stop motors.
  *
- * @return bool return true if emergency pin raised
+ * @return bool Return true if emergency pin raised.
  */
 bool processEmergency() {
   static bool isWasEmergency = false;
@@ -429,8 +455,7 @@ bool processEmergency() {
 }
 
 /**
- * @brief Process all signals from wired remote control
- *
+ * @brief Process all signals from wired remote control.
  */
 void processWires() {
   static MODE storedMode = mode;
@@ -465,8 +490,7 @@ void processWires() {
 }
 
 /**
- * @brief Update steppers data in modbus registers
- *
+ * @brief Update steppers data in modbus registers.
  */
 void updateCurrentStatus() {
   static unsigned long future = 0;
@@ -484,16 +508,17 @@ void updateCurrentStatus() {
     isSteppersMoving |= stepperStatus;
     inputRegisterWrite((REG_INP)(baseIndex + 0), stepperStatus);
 
-    const int16_t currentMm = stepsToMm(controllerData.stepperData[i], steppers[i].getCurrent());
+    const int16_t currentMm = stepsToMm(
+      controllerData.stepperData[i], steppers[i].getCurrent());
     inputRegisterWrite((REG_INP)(baseIndex + 1), currentMm);
   }
 }
 
 /**
- * @brief Check critical condition and stops next execution if it's true
+ * @brief Check critical condition and stops next execution if it's true.
  *
- * @param check condition
- * @param msg for print to Serial
+ * @param[in] check Condition.
+ * @param[in] msg Message for print to Serial port.
  */
 void checkCriticalError(const bool check, const char* msg) {
   if (!check) {
@@ -503,8 +528,7 @@ void checkCriticalError(const bool check, const char* msg) {
 }
 
 /**
- * @brief Main setup procedure, execute once by start
- *
+ * @brief Main setup procedure, execute once by start.
  */
 void setup() {
   Serial.begin(SERIAL_BAUD_RATE);
@@ -553,8 +577,7 @@ void setup() {
 }
 
 /**
- * @brief Main loop of controller, infinite
- *
+ * @brief Main loop of controller, infinite.
  */
 void loop() {
   for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
@@ -580,5 +603,4 @@ void loop() {
     }
     default: { break; }
   }
-
 }
