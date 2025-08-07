@@ -19,6 +19,11 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <string>
+
 namespace Domabot {
 
 class Controller : public rclcpp::Node {
@@ -26,6 +31,7 @@ class Controller : public rclcpp::Node {
     using Ptr = std::shared_ptr<Controller>;
     using CnstPtr = std::shared_ptr<const Controller>;
   protected:
+    static const std::string m_statusTopicName;
     Modbus::Ptr m_modbus = nullptr;
 
     rclcpp::Publisher<domabot_interfaces::msg::Status>::SharedPtr m_pubStatus = nullptr;
@@ -42,6 +48,10 @@ class Controller : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr m_statusTimer = nullptr;
     rclcpp::CallbackGroup::SharedPtr m_timerCallbackGroup = nullptr;
     uint16_t m_statusRate = 1;
+    std::mutex m_mtxTimer;
+
+    rclcpp::TimerBase::SharedPtr m_statsTimer = nullptr;
+    std::atomic_size_t m_cntStatusSubscriber{0};
 
     bool m_isCommandExecuting = false;
     MODE m_currentMode = MODE::TRG;
@@ -128,6 +138,7 @@ class Controller : public rclcpp::Node {
       , std::shared_ptr<domabot_interfaces::srv::Stop::Response> res);
 
     void statusTimerCallback();
+    void statsTimerCallback();
 
   public:
     Controller();

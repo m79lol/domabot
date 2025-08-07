@@ -4,6 +4,8 @@
 
 namespace Domabot {
 
+const std::string Controller::m_statusTopicName = "status";
+
 Controller::Controller() try : Node("domabot_controller") {
 
   m_modbus = std::make_shared<Modbus>(
@@ -32,7 +34,7 @@ Controller::Controller() try : Node("domabot_controller") {
   m_currentMode = (MODE) holdingRegs.at(REG_HLD::MODE);
   checkMode(m_currentMode, true);
 
-  m_pubStatus = create_publisher<domabot_interfaces::msg::Status>("status", 1);
+  m_pubStatus = create_publisher<domabot_interfaces::msg::Status>(m_statusTopicName, 1);
 
   m_timerCallbackGroup =
     create_callback_group(rclcpp::CallbackGroupType::Reentrant);
@@ -105,6 +107,12 @@ Controller::Controller() try : Node("domabot_controller") {
   );
 
   restartStatusTimer(pubRate);
+
+  m_statsTimer = create_wall_timer(
+      std::chrono::milliseconds(1000)
+    , std::bind(&Controller::statsTimerCallback, this)
+    , m_timerCallbackGroup
+  );
 
   RCLCPP_INFO_STREAM(
       get_logger()
@@ -362,22 +370,28 @@ void Controller::restartStatusTimer(const uint16_t rate) try {
   if (0 == rate) {
     throw Exception::createError("Invalid update status rate!");
   }
-  if (rate == m_statusRate) {
-    return;
+
+  const size_t cntScrbrs = m_cntStatusSubscriber.load(std::memory_order_acquire);
+  {
+    const std::lock_guard<std::mutex> lock(m_mtxTimer);
+    if (!m_statusTimer->is_canceled() && rate == m_statusRate && 0 < cntScrbrs) {
+      return;
+    }
+    if (nullptr != m_statusTimer) {
+      m_statusTimer->cancel(); // stop old timer
+    }
+    if (0 == cntScrbrs) {
+      return;
+    }
+
+    const std::chrono::milliseconds pubPeriod(1000 / rate);
+    m_statusTimer = create_wall_timer(
+        pubPeriod
+      , std::bind(&Controller::statusTimerCallback, this)
+      , m_timerCallbackGroup
+    );
+    m_statusRate = rate;
   }
-
-  if (nullptr != m_statusTimer) {
-    m_statusTimer->cancel(); // stop old timer
-  }
-
-  const std::chrono::milliseconds pubPeriod(1000 / rate);
-  m_statusTimer = create_wall_timer(
-      pubPeriod
-    , std::bind(&Controller::statusTimerCallback, this)
-    , m_timerCallbackGroup
-  );
-
-  m_statusRate = rate;
 
   RCLCPP_INFO_STREAM(
       get_logger()
@@ -587,6 +601,13 @@ void Controller::statusTimerCallback() try {
   msg.stepper_right.position = inputRegs.at(REG_INP::POS_R);
 
   m_pubStatus->publish(msg);
+} catch (const std::exception& e) {
+  RCLCPP_ERROR_STREAM(get_logger(), e.what());
+}
+
+void Controller::statsTimerCallback() try {
+  m_cntStatusSubscriber.store(count_subscribers(m_statusTopicName), std::memory_order_relaxed);
+  restartStatusTimer(m_statusRate);
 } catch (const std::exception& e) {
   RCLCPP_ERROR_STREAM(get_logger(), e.what());
 }
