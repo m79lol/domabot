@@ -1,5 +1,5 @@
 /**
- * @file
+ * @file StringTools.h
  * @brief Domabot String Tools class header file.
 */
 #ifndef Domabot_StringTools_h
@@ -24,7 +24,7 @@ class StringTools {
      * @brief Convert any string typed number to number type.
      *
      * @param[in] str String with number to conversion.
-     * @return T number value defined as template param T.
+     * @return Number value defined as template param T.
      */
     template <typename T>
     static T stringToNumber(const std::string& str) try {

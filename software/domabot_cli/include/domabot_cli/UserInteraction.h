@@ -1,5 +1,5 @@
 /**
- * @file
+ * @file UserInteraction.h
  * @brief Domabot User Interaction class header file.
 */
 #ifndef Domabot_UserInteraction_h
@@ -12,7 +12,7 @@
 
 namespace Domabot {
 
-  /**
+/**
  * @brief User Interaction tools.
  *
  * @details Full static class for different method for interaction user by
@@ -26,7 +26,7 @@ class UserInteraction {
      * to question string.
      *
      * @param[in] question Question text
-     * @return bool Return true if user answer is "yes", otherwise if answer
+     * @return true if user answer is "yes", otherwise if answer
      * was "no".
      */
     static bool askUser(const std::string& question);
@@ -37,7 +37,7 @@ class UserInteraction {
      * to continue.
      *
      * @param[in] sentence Ask text.
-     * @return std::string Return user intput string.
+     * @return User intput string.
      */
     static std::string askInput(const std::string& sentence);
 
@@ -60,7 +60,7 @@ class UserInteraction {
      *
      * @param[in] preface Ask text.
      * @param[in] options Array of answer options as vector of Option struct
-     * @return ResultType Return user choosen option.
+     * @return User choosen option.
      */
     template<typename ResultType>
     static ResultType proposeOptions(

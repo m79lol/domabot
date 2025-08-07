@@ -1,5 +1,5 @@
 /**
- * @file
+ * @file main.ino
  * @brief Main firmware source file.
  * @details Contains firmware C++ code for microcontrolher based Arduino Mega2560.
 */
@@ -87,7 +87,7 @@ GStepper2<STEPPER2WIRE> steppers[MOTOR_CNT] = {
  * @brief Modbus holding register read wrapper.
  *
  * @param[in] address Address of holding register.
- * @return long Register value.
+ * @return Register value.
  */
 long holdingRegisterRead(const REG_HLD address) {
   return ModbusRTUServer.holdingRegisterRead((int) address);
@@ -98,7 +98,7 @@ long holdingRegisterRead(const REG_HLD address) {
  *
  * @param[in] address Address of holding register.
  * @param[in] value Value to write.
- * @return int 1 for success, 0 for fail.
+ * @return 1 for success, 0 for fail.
  */
 int holdingRegisterWrite(const REG_HLD address, const uint16_t value) {
   return ModbusRTUServer.holdingRegisterWrite((int) address, value);
@@ -109,7 +109,7 @@ int holdingRegisterWrite(const REG_HLD address, const uint16_t value) {
  *
  * @param[in] address Address of input register.
  * @param[in] value Value to write.
- * @return int 1 for success, 0 for fail.
+ * @return 1 for success, 0 for fail.
  */
 int inputRegisterWrite(const REG_INP address, const uint16_t value) {
   return ModbusRTUServer.inputRegisterWrite((int) address, value);
@@ -120,7 +120,7 @@ int inputRegisterWrite(const REG_INP address, const uint16_t value) {
  *
  * @param[in] address Address of coil.
  * @param[in] value Value to write.
- * @return int 1 for success, 0 for fail.
+ * @return 1 for success, 0 for fail.
  */
 int coilWrite(const COIL address, const uint8_t value) {
   return ModbusRTUServer.coilWrite((int) address, value);
@@ -130,7 +130,7 @@ int coilWrite(const COIL address, const uint8_t value) {
  * @brief Modbus coil read wrapper.
  *
  * @param[in] address Address of coil.
- * @return bool Returned value.
+ * @return Read value.
  */
 bool coilRead(const COIL address) {
   return 0 != ModbusRTUServer.coilRead((int) address);
@@ -141,7 +141,7 @@ bool coilRead(const COIL address) {
  *
  * @param[in] stepperData actual stepper.
  * @param[in] distance in mm.
- * @return int32_t Steps count.
+ * @return Steps count.
  */
 int32_t mmToSteps(const StepperData& stepperData, const int16_t distance) {
   if (0 == stepperData.wheelDiamMm) {
@@ -158,7 +158,7 @@ int32_t mmToSteps(const StepperData& stepperData, const int16_t distance) {
  *
  * @param[in] stepperData Actual stepper.
  * @param[in] steps Count steps.
- * @return int16_t Distance.
+ * @return Distance.
  */
 int16_t stepsToMm(const StepperData& stepperData, const int32_t steps) {
   if (0 == STEPS_REV || 0 == stepperData.gearRatio) {
@@ -221,7 +221,7 @@ void completeCommand(const STS status) {
 /**
  * @brief Load controller data from EEPROM memory.
  *
- * @return uint8_t Exit code.
+ * @return Exit code.
  */
 uint8_t loadFromMemory() {
   const uint8_t res = memory.begin(0, FIRMWARE_VERSION);
@@ -433,7 +433,7 @@ void processCommand() {
 /**
  * @brief Execute emergency stop motors.
  *
- * @return bool Return true if emergency pin raised.
+ * @return true if emergency pin raised.
  */
 bool processEmergency() {
   static bool isWasEmergency = false;

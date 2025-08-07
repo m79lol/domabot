@@ -1,5 +1,5 @@
 /**
- * @file
+ * @file firmware_data_types.h
  * @brief Header for firmware base enums.
  * @details Contains base enums used in modbus communication between
  * microcontrolher and PC.
