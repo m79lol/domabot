@@ -15,9 +15,10 @@
 
 #include <math.h>
 
-#define FIRMWARE_VERSION 1 ///< update with every firmware release
+#define FIRMWARE_VERSION 1 ///< Update with every firmware release
 
-#define SERIAL_BAUD_RATE 9600
+#define MODBUS_SLAVE_ID 1 ///< Device addres in modbus network
+#define SERIAL_BAUD_RATE 9600 ///< Default: 9600. Allowed: 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 23040
 
 // PINS assignation
 #define MOTOR_L_STEP_PIN 11
@@ -37,10 +38,10 @@
 #define EMERGENCY_STOP_PIN  9999999
 // end PINS
 
-#define STEPS_REV 1600 // must be above zero
+#define STEPS_REV 1600 ///< Steps per motor revolution, must be above zero. Sets on stepper driver.
 static_assert(0 < STEPS_REV);
 
-#define MOTOR_CNT 2 // always
+#define MOTOR_CNT 2 ///< Motor count is two, always.
 
 /**
  * @brief Stepper motor data stored in EEPROM memory.
@@ -535,7 +536,7 @@ void setup() {
   controllerData.stepperData[0].isForward = 0;
 
   checkCriticalError(
-    ModbusRTUServer.begin(1, SERIAL_BAUD_RATE),
+    ModbusRTUServer.begin(MODBUS_SLAVE_ID, SERIAL_BAUD_RATE),
     "Failed to start Modbus RTU Server!"
   );
   checkCriticalError(

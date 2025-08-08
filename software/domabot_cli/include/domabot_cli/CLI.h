@@ -1,5 +1,5 @@
 /**
- * @file
+ * @file CLI.h
  * @brief Domabot CLI node class header file.
 */
 #ifndef Domabot_CLI_h
