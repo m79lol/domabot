@@ -1,9 +1,10 @@
 /**
  * @file Controller.h
  * @brief Domabot Controller class header file.
+ * @copyright Copyright 2025 m79lol
 */
-#ifndef Domabot_Controller_h
-#define Domabot_Controller_h
+#ifndef DOMABOT_CONTROLLER__CONTROLLER_H_
+#define DOMABOT_CONTROLLER__CONTROLLER_H_
 
 #include <domabot_controller/Modbus.h>
 
@@ -30,42 +31,52 @@
 
 namespace Domabot {
 
-/**
- * @brief Class node for communication with micro-controller mega2560.
- */
+/** @brief Class node for communication with micro-controller mega2560. */
 class Controller : public rclcpp::Node {
   public:
     using Ptr = std::shared_ptr<Controller>;
     using CnstPtr = std::shared_ptr<const Controller>;
+
   protected:
-    static const std::string m_statusTopicName; ///< Status topic name.
-    Modbus::Ptr m_modbus = nullptr; ///< Modbus class wrapper, contains connections descriptor.
+    #define DI domabot_interfaces
+    static const char m_statusTopicName[];  ///< Status topic name.
 
-    rclcpp::Publisher<domabot_interfaces::msg::Status>::SharedPtr m_pubStatus = nullptr;
+    /** @brief Modbus class wrapper, contains connections descriptor. */
+    Modbus::Ptr m_modbus = nullptr;
 
-    rclcpp::Service<domabot_interfaces::srv::Brake>::SharedPtr m_srvBrake = nullptr;
-    rclcpp::Service<domabot_interfaces::srv::GetData>::SharedPtr m_srvGetData = nullptr;
-    rclcpp::Service<domabot_interfaces::srv::Move>::SharedPtr m_srvMove = nullptr;
-    rclcpp::Service<domabot_interfaces::srv::SaveSettings>::SharedPtr m_srvSaveSettings = nullptr;
-    rclcpp::Service<domabot_interfaces::srv::SetDirection>::SharedPtr m_srvSetDirection = nullptr;
-    rclcpp::Service<domabot_interfaces::srv::SetMode>::SharedPtr m_srvSetMode = nullptr;
-    rclcpp::Service<domabot_interfaces::srv::SetSettings>::SharedPtr m_srvSetSettings = nullptr;
-    rclcpp::Service<domabot_interfaces::srv::Stop>::SharedPtr m_srvStop = nullptr;
+    rclcpp::Publisher<DI::msg::Status>::SharedPtr
+      m_pubStatus = nullptr;
 
-    rclcpp::TimerBase::SharedPtr m_statusTimer = nullptr; ///< Timer requesting data from controller for status publishing.
-    rclcpp::CallbackGroup::SharedPtr m_timerCallbackGroup = nullptr; ///< Reentrant call back group for timers.
-    uint16_t m_statusRate = 1; ///< Rate for status publishing.
-    std::mutex m_mtxTimer; ///< Mutex for rate & status timer.
+    rclcpp::Service<DI::srv::Brake>::SharedPtr m_srvBrake = nullptr;
+    rclcpp::Service<DI::srv::GetData>::SharedPtr m_srvGetData = nullptr;
+    rclcpp::Service<DI::srv::Move>::SharedPtr m_srvMove = nullptr;
+    rclcpp::Service<DI::srv::SaveSettings>::SharedPtr m_srvSaveSettings = nullptr;
+    rclcpp::Service<DI::srv::SetDirection>::SharedPtr m_srvSetDirection = nullptr;
+    rclcpp::Service<DI::srv::SetMode>::SharedPtr m_srvSetMode = nullptr;
+    rclcpp::Service<DI::srv::SetSettings>::SharedPtr m_srvSetSettings = nullptr;
+    rclcpp::Service<DI::srv::Stop>::SharedPtr m_srvStop = nullptr;
 
-    rclcpp::TimerBase::SharedPtr m_statsTimer = nullptr; ///< Checks subscribers for status and restart status timer.
-    std::atomic_size_t m_cntStatusSubscriber{0}; ///< Count subscribers on Status topic.
+    /** @brief Timer requesting data from controller for status publishing. */
+    rclcpp::TimerBase::SharedPtr m_statusTimer = nullptr;
 
-    bool m_isCommandExecuting = false; ///< Command executing flag for blocking another not emergency commands.
-    MODE m_currentMode = MODE::TRG; ///< Current robot behavior.
+    /** @brief Reentrant call back group for timers. */
+    rclcpp::CallbackGroup::SharedPtr m_timerCallbackGroup = nullptr;
+
+    uint16_t m_statusRate = 1;  ///< Rate for status publishing.
+    std::mutex m_mtxTimer;  ///< Mutex for rate & status timer.
+
+    /** @brief Checks subscribers for status and restart status timer. */
+    rclcpp::TimerBase::SharedPtr m_statsTimer = nullptr;
+
+    /** @brief Count subscribers on Status topic. */
+    std::atomic_size_t m_cntStatusSubscriber{0};
+
+    /** @brief Command executing flag for blocking another not emergency commands. */
+    bool m_isCommandExecuting = false;
+    MODE m_currentMode = MODE::TRG;  ///< Current robot behavior.
 
     /**
      * @brief Get printable name of command.
-     *
      * @param[in] command Robot command from CMD enum.
      * @return String command name.
      */
@@ -73,7 +84,6 @@ class Controller : public rclcpp::Node {
 
     /**
      * @brief Get printable name of command execution status.
-     *
      * @param[in] status Status from STS enum.
      * @return String status name.
      */
@@ -81,7 +91,6 @@ class Controller : public rclcpp::Node {
 
     /**
      * @brief Get printable name of robot operation mode.
-     *
      * @param[in] mode Mode from MODE enum.
      * @return String mode name.
      */
@@ -91,7 +100,6 @@ class Controller : public rclcpp::Node {
      * @brief Check obtained execution command status.
      * @details Useful for obtained execution status from external source and
      * detection protocol errors.
-     *
      * @param[in] status Command execution status.
      * @param[in] selfCheck Flag for internal use, disable throwing
      * exceptions.
@@ -103,7 +111,6 @@ class Controller : public rclcpp::Node {
      * @brief Check obtained mode for valid value.
      * @details Useful for obtained mode from external source and
      * detection protocol errors.
-     *
      * @param[in] mode Mode from MODE enum.
      * @param[in] selfCheck Flag for internal use, disable throwing
      * exceptions for hardware activated modes.
@@ -116,7 +123,6 @@ class Controller : public rclcpp::Node {
      * @brief Check obtained direction for valid value.
      * @details Useful for obtained direction from external source and
      * detection protocol errors.
-     *
      * @param[in] direction Mode from DIR enum.
      * @throws If direction outside DIR enum values.
      */
@@ -126,7 +132,6 @@ class Controller : public rclcpp::Node {
      * @brief Check obtained stepper status for valid value.
      * @details Useful for obtained direction from external source and
      * detection protocol errors.
-     *
      * @param[in] stepperStatus Stepper status from STPR_STS enum.
      * @throws If stepper status outside STPR_STS enum values.
      */
@@ -136,7 +141,6 @@ class Controller : public rclcpp::Node {
      * @brief Check obtained command for valid value.
      * @details Useful for obtained command from external source and
      * detection protocol errors.
-     *
      * @param[in] command Command from CMD enum.
      * @throws If command outside CMD enum values.
      */
@@ -145,17 +149,15 @@ class Controller : public rclcpp::Node {
     /**
      * @brief Write controller settings to Modbus Holding registers.
      * @details Write only filled settings fields.
-     *
      * @param[in] settings Controller settings.
      */
     void setSettingsToRegisters(
-      const domabot_interfaces::msg::ControllerSettings& settings);
+      const DI::msg::ControllerSettings& settings);
 
     /**
      * @brief Send & run command on micro-controller via Modbus.
      * @details Performs handshake for command transfer to controller.
      * Wait accept & complete execution from micro-controller side.
-     *
      * @param[in] cmd Valid command from CMD.
      * @throws If can't execute command at this time, for non emergency commands.
      * @throws If command invalid.
@@ -166,7 +168,7 @@ class Controller : public rclcpp::Node {
     /**
      * @brief Template for run command via service call.
      * @details Calls to runCommand method and fill positive response fields.
-     *
+     * @tparam Service Processed service.
      * @param[in] res Pointer to not filled service response.
      * @param[in] command Command to execution.
      * @throws Nothing. Catch all exceptions and print it.
@@ -188,7 +190,7 @@ class Controller : public rclcpp::Node {
     /**
      * @brief Template for exception processing raised within service call.
      * @details Catch all exceptions, print it and fill negative response fields.
-     *
+     * @tparam Service Processed service.
      * @param[in] res Pointer to not filled service response.
      * @param[in] e Catched exception.
      */
@@ -203,8 +205,8 @@ class Controller : public rclcpp::Node {
     }
 
     /**
-     * @brief Template to fill register values container by external obtained value.
-     *
+     * @brief Template to fill container by external obtained value.
+     * @tparam Container Register values container (unordered_map)
      * @param[in] holdingRegs Ref to container with holding register values.
      * @param[in] address Register addres, must be valid value from REG_HLD enum.
      * @param[in] container Ref to external container with value. Container
@@ -234,7 +236,6 @@ class Controller : public rclcpp::Node {
      * @details Calls on every status subscribers count or rate setting change. If
      * there is not subscribers, then disable timer. If rate not changed for enabled
      * timer, do nothing.
-     *
      * @param[in] rate Rate for status update in status topic.
      * @throws if rate is zero, because zero division.
      */
@@ -242,49 +243,53 @@ class Controller : public rclcpp::Node {
 
     /** @brief Performs emergency stops robot's wheels. */
     void brakeSrvCallback(
-        const std::shared_ptr<domabot_interfaces::srv::Brake::Request> req
-      , std::shared_ptr<domabot_interfaces::srv::Brake::Response> res);
+        const std::shared_ptr<DI::srv::Brake::Request> req
+      , std::shared_ptr<DI::srv::Brake::Response> res);
 
-    /** @brief Service for obtain all status & settings data from micro-controller. */
+    /** @brief Service for obtain all status & settings data from
+     * micro-controller. */
     void getDataSrvCallback(
-        const std::shared_ptr<domabot_interfaces::srv::GetData::Request> req
-      , std::shared_ptr<domabot_interfaces::srv::GetData::Response> res);
+        const std::shared_ptr<DI::srv::GetData::Request> req
+      , std::shared_ptr<DI::srv::GetData::Response> res);
 
     /** @brief Send target wheels positions and move command to it. */
     void moveSrvCallback(
-        const std::shared_ptr<domabot_interfaces::srv::Move::Request> req
-      , std::shared_ptr<domabot_interfaces::srv::Move::Response> res);
+        const std::shared_ptr<DI::srv::Move::Request> req
+      , std::shared_ptr<DI::srv::Move::Response> res);
 
     /** @brief Send settings to micro-controller, apply & save them to EEPROM. */
     void saveSettingsSrvCallback(
-        const std::shared_ptr<domabot_interfaces::srv::SaveSettings::Request> req
-      , std::shared_ptr<domabot_interfaces::srv::SaveSettings::Response> res);
+        const std::shared_ptr<DI::srv::SaveSettings::Request> req
+      , std::shared_ptr<DI::srv::SaveSettings::Response> res);
 
     /** @brief Change robot direction move in Direction (DIR) mode. */
     void setDirectionSrvCallback(
-        const std::shared_ptr<domabot_interfaces::srv::SetDirection::Request> req
-      , std::shared_ptr<domabot_interfaces::srv::SetDirection::Response> res);
+        const std::shared_ptr<DI::srv::SetDirection::Request> req
+      , std::shared_ptr<DI::srv::SetDirection::Response> res);
 
     /** @brief Change robot operation mode. */
     void setModeSrvCallback(
-        const std::shared_ptr<domabot_interfaces::srv::SetMode::Request> req
-      , std::shared_ptr<domabot_interfaces::srv::SetMode::Response> res);
+        const std::shared_ptr<DI::srv::SetMode::Request> req
+      , std::shared_ptr<DI::srv::SetMode::Response> res);
 
     /** @brief Send settings to micro-controller, apply them without saving. */
     void setSettingsSrvCallback(
-        const std::shared_ptr<domabot_interfaces::srv::SetSettings::Request> req
-      , std::shared_ptr<domabot_interfaces::srv::SetSettings::Response> res);
+        const std::shared_ptr<DI::srv::SetSettings::Request> req
+      , std::shared_ptr<DI::srv::SetSettings::Response> res);
 
     /** @brief Performs slow down stop wheels. */
     void stopSrvCallback(
-        const std::shared_ptr<domabot_interfaces::srv::Stop::Request> req
-      , std::shared_ptr<domabot_interfaces::srv::Stop::Response> res);
+        const std::shared_ptr<DI::srv::Stop::Request> req
+      , std::shared_ptr<DI::srv::Stop::Response> res);
 
-    /** @brief Request status from micro-controller and publish it to status topic. */
+    /** @brief Request status from micro-controller and publish it to
+     * status topic. */
     void statusTimerCallback();
 
     /** @brief Check status topic subscriber and stop/starts status timer for its. */
     void statsTimerCallback();
+
+    #undef DI
 
   public:
     Controller();
@@ -295,9 +300,8 @@ class Controller : public rclcpp::Node {
     Controller& operator=(Controller&& other)      = delete;
 
     virtual ~Controller() = default;
+};  // Controller
 
-}; // Controller
+}  // namespace Domabot
 
-} // Domabot
-
-#endif // Domabot_Controller_h
+#endif  // DOMABOT_CONTROLLER__CONTROLLER_H_

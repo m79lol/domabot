@@ -2,15 +2,18 @@
  * @file RosService.h
  * @brief Domabot RosService tools header file.
  * @details Contains tool method for unified work with ROS services.
+ * @copyright Copyright 2025 m79lol
 */
-#ifndef Domabot_RosService_h
-#define Domabot_RosService_h
+#ifndef DOMABOT_COMMON_LIB__ROSSERVICE_H_
+#define DOMABOT_COMMON_LIB__ROSSERVICE_H_
 
 #include <domabot_common_lib/Exception.h>
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <memory>
 #include <stdexcept>
+#include <string>
 
 namespace Domabot {
 
@@ -41,11 +44,9 @@ namespace RosService {
     , const typename rclcpp::Client<ServiceType>::SharedPtr client
     , const std::shared_ptr<typename ServiceType::Request> request
   ) try {
-    using namespace std::chrono_literals;
-
     const std::string serviceName = client->get_service_name();
 
-    while (!client->wait_for_service(1s)) {
+    while (!client->wait_for_service(std::chrono::seconds(1))) {
       if (!rclcpp::ok()) {
         throw Exception::createError(
           "Interrupted while waiting for the service: ", serviceName);
@@ -62,7 +63,8 @@ namespace RosService {
       throw Exception::createError("Failed to call service: ", serviceName);
     }
 
-    const std::shared_ptr<const typename ServiceType::Response> response = result.get();
+    const std::shared_ptr<const typename ServiceType::Response> response =
+      result.get();
     if (!response->response_data.is_success) {
       throw Exception::createError(response->response_data.error_message);
     }
@@ -72,8 +74,8 @@ namespace RosService {
     return response;
   } defaultCatch
 
-} // RosService
+}  // namespace RosService
 
-} // Domabot
+}  // namespace Domabot
 
-#endif // Domabot_RosService_h
+#endif  // DOMABOT_COMMON_LIB__ROSSERVICE_H_

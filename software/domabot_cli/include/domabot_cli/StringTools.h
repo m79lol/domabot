@@ -1,9 +1,10 @@
 /**
  * @file StringTools.h
  * @brief Domabot String Tools class header file.
+ * @copyright Copyright 2025 m79lol
 */
-#ifndef Domabot_StringTools_h
-#define Domabot_StringTools_h
+#ifndef DOMABOT_CLI__STRINGTOOLS_H_
+#define DOMABOT_CLI__STRINGTOOLS_H_
 
 #include <domabot_common_lib/Exception.h>
 
@@ -14,15 +15,13 @@ namespace Domabot {
 
 /**
  * @brief String tools.
- *
  * @details Full static class for different string processing tool-methods.
  */
 class StringTools {
   public:
-
     /**
      * @brief Convert any string typed number to number type.
-     *
+     * @tparam T Trivial number type.
      * @param[in] str String with number to conversion.
      * @return Number value defined as template param T.
      */
@@ -37,9 +36,8 @@ class StringTools {
       }
       return value;
     } defaultCatch
+};  // StringTools
 
-}; // StringTools
+}  // namespace Domabot
 
-} // Domabot
-
-#endif // Domabot_StringTools_h
+#endif  // DOMABOT_CLI__STRINGTOOLS_H_

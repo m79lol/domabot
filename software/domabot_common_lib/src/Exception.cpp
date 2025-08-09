@@ -1,30 +1,34 @@
-
+/**
+ * @file Exception.cpp
+ * @brief Domabot Exception class source file.
+ * @copyright Copyright 2025 m79lol
+*/
 #include <domabot_common_lib/Exception.h>
 
 namespace Domabot {
 
-Exception::Exception(const std::string& msg) : runtime_error(msg) {};
+Exception::Exception(const std::string& msg) : runtime_error(msg) {}
 
-Exception::Exception(const std::exception& e) : runtime_error(e.what()) {};
+Exception::Exception(const std::exception& e) : runtime_error(e.what()) {}
 
 bool Exception::isChildsEmpty() const noexcept {
   return m_childs.empty();
-};
+}
 
 void Exception::add(const std::exception& child) {
   m_childs.emplace_back(child.what());
-};
+}
 
 void Exception::add(const std::string& child) {
   m_childs.emplace_back(child);
-};
+}
 
 void Exception::checkSelf() {
   if (isChildsEmpty()) {
     return;
   }
   throw std::runtime_error(toString());
-};
+}
 
 std::string Exception::toString() const {
   std::string msg = what();
@@ -32,11 +36,11 @@ std::string Exception::toString() const {
     msg += std::string("\n  ") + e;
   }
   return msg;
-};
+}
 
 std::runtime_error Exception::toRuntimeError() const {
   return std::runtime_error(toString());
-};
+}
 
 std::runtime_error Exception::backTrack(
   const std::string& file,
@@ -49,7 +53,10 @@ std::runtime_error Exception::backTrack(
   static const std::string search = "\n  ";
   static const std::string replace = "\n    ";
 
-  for (std::string::size_type n = 0; (n = tmp.find(search, n)) != std::string::npos; ) {
+  for (
+    std::string::size_type n = 0;
+    (n = tmp.find(search, n)) != std::string::npos;
+  ) {
     tmp.replace( n, search.length(), replace);
     n += replace.length();
   }
@@ -60,6 +67,6 @@ std::runtime_error Exception::backTrack(
     std::to_string(line) + " in " + func + (msg.empty() ? "" : " - " + msg) +
     "\n  " + tmp
   );
-};
+}
 
-} // Domabot
+}  // namespace Domabot

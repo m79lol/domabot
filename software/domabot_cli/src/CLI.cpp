@@ -1,4 +1,8 @@
-
+/**
+ * @file CLI.cpp
+ * @brief Domabot CLI node class source file.
+ * @copyright Copyright 2025 m79lol
+*/
 #include <domabot_cli/CLI.h>
 #include <domabot_cli/StringTools.h>
 #include <domabot_cli/UserInteraction.h>
@@ -7,22 +11,23 @@
 
 namespace Domabot {
 
+#define DI domabot_interfaces
+
 CLI::CLI() try : Node("domabot_cli") {
-  m_subStatus = create_subscription<domabot_interfaces::msg::Status>(
+  m_subStatus = create_subscription<DI::msg::Status>(
       "status", 1, std::bind(&CLI::statusCallback, this, std::placeholders::_1));
 
-  m_clientBrake        = create_client<domabot_interfaces::srv::Brake>("brake");
-  m_clientGetData      = create_client<domabot_interfaces::srv::GetData>("get_data");
-  m_clientMove         = create_client<domabot_interfaces::srv::Move>("move");
-  m_clientSaveSettings = create_client<domabot_interfaces::srv::SaveSettings>("save_settings");
-  m_clientSetDirection = create_client<domabot_interfaces::srv::SetDirection>("set_direction");
-  m_clientSetMode      = create_client<domabot_interfaces::srv::SetMode>("set_mode");
-  m_clientSetSettings  = create_client<domabot_interfaces::srv::SetSettings>("set_settings");
-  m_clientStop         = create_client<domabot_interfaces::srv::Stop>("stop");
-
+  m_clientBrake        = create_client<DI::srv::Brake>("brake");
+  m_clientGetData      = create_client<DI::srv::GetData>("get_data");
+  m_clientMove         = create_client<DI::srv::Move>("move");
+  m_clientSaveSettings = create_client<DI::srv::SaveSettings>("save_settings");
+  m_clientSetDirection = create_client<DI::srv::SetDirection>("set_direction");
+  m_clientSetMode      = create_client<DI::srv::SetMode>("set_mode");
+  m_clientSetSettings  = create_client<DI::srv::SetSettings>("set_settings");
+  m_clientStop         = create_client<DI::srv::Stop>("stop");
 } defaultCatch
 
-void CLI::statusCallback(const domabot_interfaces::msg::Status& msg) try {
+void CLI::statusCallback(const DI::msg::Status& msg) try {
   const std::lock_guard<std::mutex> lock(m_mtxLastStatus);
   m_msgLastStatus = msg;
 } catch (const std::exception& e) {
@@ -43,46 +48,47 @@ void CLI::runCLI() try {
 
   bool isTerminate = false;
   while (rclcpp::ok() && !isTerminate) {
-
-    const auto command =  UserInteraction::proposeOptions<USER_COMMAND>("Available commands:", {
-        {"br", "Brake"          , USER_COMMAND::BRAKE }
-      , {"st", "Stop"           , USER_COMMAND::STOP  }
-      , {"mv", "Move to target" , USER_COMMAND::MOVE  }
-      , {"up", "Update settings", USER_COMMAND::UPDATE}
-      , {"sv", "Save settings"  , USER_COMMAND::SAVE  }
-      , {"cm", "Change mode"    , USER_COMMAND::MODE  }
-      , {"cd", "Change dir"     , USER_COMMAND::DIR   }
-      , {"q" , "Quit"           , USER_COMMAND::QUIT  }
-    });
+    const auto command =  UserInteraction::proposeOptions<USER_COMMAND>(
+        "Available commands:"
+      , {
+          {"br", "Brake"          , USER_COMMAND::BRAKE }
+        , {"st", "Stop"           , USER_COMMAND::STOP  }
+        , {"mv", "Move to target" , USER_COMMAND::MOVE  }
+        , {"up", "Update settings", USER_COMMAND::UPDATE}
+        , {"sv", "Save settings"  , USER_COMMAND::SAVE  }
+        , {"cm", "Change mode"    , USER_COMMAND::MODE  }
+        , {"cd", "Change dir"     , USER_COMMAND::DIR   }
+        , {"q" , "Quit"           , USER_COMMAND::QUIT  }
+      });
 
     switch (command) {
       case USER_COMMAND::BRAKE: {
-        RosService::callAndVerifyService<domabot_interfaces::srv::Brake>(
+        RosService::callAndVerifyService<DI::srv::Brake>(
             shared_from_this()
           , get_logger().get_child("service")
           , m_clientBrake
-          , std::make_shared<domabot_interfaces::srv::Brake::Request>()
+          , std::make_shared<DI::srv::Brake::Request>()
         );
         break;
       }
       case USER_COMMAND::STOP: {
-        RosService::callAndVerifyService<domabot_interfaces::srv::Stop>(
+        RosService::callAndVerifyService<DI::srv::Stop>(
             shared_from_this()
           , get_logger().get_child("service")
           , m_clientStop
-          , std::make_shared<domabot_interfaces::srv::Stop::Request>()
+          , std::make_shared<DI::srv::Stop::Request>()
         );
         break;
       }
       case USER_COMMAND::MOVE: {
-        const auto req = std::make_shared<domabot_interfaces::srv::Move::Request>();
+        const auto req = std::make_shared<DI::srv::Move::Request>();
 
         req->target_position_left = StringTools::stringToNumber<int16_t>(
           UserInteraction::askInput("Enter target position for left stepper: "));
         req->target_position_right = StringTools::stringToNumber<int16_t>(
           UserInteraction::askInput("Enter target position for right stepper: "));
 
-        RosService::callAndVerifyService<domabot_interfaces::srv::Move>(
+        RosService::callAndVerifyService<DI::srv::Move>(
             shared_from_this()
           , get_logger().get_child("service")
           , m_clientMove
@@ -108,7 +114,8 @@ void CLI::runCLI() try {
       }
     }
   }
-
 } defaultCatch
 
-} // Domabot
+#undef DI
+
+}  // namespace Domabot

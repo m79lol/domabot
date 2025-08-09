@@ -1,3 +1,8 @@
+/**
+ * @file domabot_controller.cpp
+ * @brief Domabot Controller Node main source file.
+ * @copyright Copyright 2025 m79lol
+*/
 #include <domabot_controller/Controller.h>
 
 #include <rclcpp/rclcpp.hpp>

@@ -1,4 +1,8 @@
-
+/**
+ * @file ControllerParams.cpp
+ * @brief Domabot Controller Params source file.
+ * @copyright Copyright 2025 m79lol
+*/
 #include <domabot_controller/ControllerParams.h>
 #include <domabot_controller/RosParam.h>
 
@@ -85,7 +89,8 @@ unsigned int ControllerParams::getSlaveId(rclcpp::Node& node) try {
     , [](const rclcpp::Parameter& parameter) {
       const int slaveId = parameter.as_int();
       if (slaveId <= 0) {
-        throw Exception::createError("Modbus slave id is ", slaveId, ". Slave id must be above zero.");
+        throw Exception::createError(
+          "Modbus slave id is ", slaveId, ". Slave id must be above zero.");
       }
       return slaveId;
     }
@@ -93,4 +98,4 @@ unsigned int ControllerParams::getSlaveId(rclcpp::Node& node) try {
   ).getValue();
 } defaultCatch
 
-} // Domabot
+}  // namespace Domabot

@@ -2,6 +2,7 @@
  * @file main.ino
  * @brief Main firmware source file.
  * @details Contains firmware C++ code for microcontrolher based Arduino Mega2560.
+ * @copyright Copyright 2025 m79lol
 */
 
 #include "domabot_firmware/firmware_data_types.h"
@@ -15,10 +16,11 @@
 
 #include <math.h>
 
-#define FIRMWARE_VERSION 1 ///< Update with every firmware release
+#define FIRMWARE_VERSION 1  ///< Update with every firmware release
 
-#define MODBUS_SLAVE_ID 1 ///< Device addres in modbus network
-#define SERIAL_BAUD_RATE 9600 ///< Default: 9600. Allowed: 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 23040
+#define MODBUS_SLAVE_ID 1  ///< Device addres in modbus network
+#define SERIAL_BAUD_RATE 9600  ///< Default: 9600.
+// Allowed: 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 23040
 
 // PINS assignation
 #define MOTOR_L_STEP_PIN 11
@@ -38,28 +40,26 @@
 #define EMERGENCY_STOP_PIN  9999999
 // end PINS
 
-#define STEPS_REV 1600 ///< Steps per motor revolution, must be above zero. Sets on stepper driver.
+#define STEPS_REV 1600  ///< Steps per motor revolution
+// Must be above zero. Sets on stepper driver.
 static_assert(0 < STEPS_REV);
 
-#define MOTOR_CNT 2 ///< Motor count is two, always.
+#define MOTOR_CNT 2  ///< Motor count is two, always.
 
-/**
- * @brief Stepper motor data stored in EEPROM memory.
- */
+/** @brief Stepper motor data stored in EEPROM memory. */
 struct StepperData {
   uint16_t maxSpeedMms = 110;
   uint16_t maxAccMms2 = 55;
-  uint16_t gearRatio = uint16_t(85.0 / 24.0 * 1000.0); // Z-driven / Z-leading * precision = 3541
+  uint16_t gearRatio =
+    uint16_t(85.0 / 24.0 * 1000.0);  ///< Z-driven / Z-leading * precision = 3541
   uint8_t wheelDiamMm = 200;
-  uint8_t isForward = 1; // must zero for L motor, index 0
+  uint8_t isForward = 1;  ///< must zero for L motor, index 0
 };
 
-/**
- * @brief Controller data stored in EEPROM memory.
- */
+/** @brief Controller data stored in EEPROM memory. */
 struct ControllerData {
-  StepperData stepperData[MOTOR_CNT]; // left is 0, right is 1
-  uint16_t updateRateHz = 50; // for Modbus Input Registers
+  StepperData stepperData[MOTOR_CNT];  ///< left is 0, right is 1
+  uint16_t updateRateHz = 50;  ///< for Modbus Input Registers
 };
 
 uint8_t isSteppersMoving = 0;
@@ -86,60 +86,54 @@ GStepper2<STEPPER2WIRE> steppers[MOTOR_CNT] = {
 
 /**
  * @brief Modbus holding register read wrapper.
- *
  * @param[in] address Address of holding register.
  * @return Register value.
  */
-long holdingRegisterRead(const REG_HLD address) {
-  return ModbusRTUServer.holdingRegisterRead((int) address);
+int32_t holdingRegisterRead(const REG_HLD address) {
+  return ModbusRTUServer.holdingRegisterRead(static_cast<int>(address));
 }
 
 /**
  * @brief Modbus holding register write wrapper.
- *
  * @param[in] address Address of holding register.
  * @param[in] value Value to write.
  * @return 1 for success, 0 for fail.
  */
 int holdingRegisterWrite(const REG_HLD address, const uint16_t value) {
-  return ModbusRTUServer.holdingRegisterWrite((int) address, value);
+  return ModbusRTUServer.holdingRegisterWrite(static_cast<int>(address), value);
 }
 
 /**
  * @brief Modbus input register write wrapper.
- *
  * @param[in] address Address of input register.
  * @param[in] value Value to write.
  * @return 1 for success, 0 for fail.
  */
 int inputRegisterWrite(const REG_INP address, const uint16_t value) {
-  return ModbusRTUServer.inputRegisterWrite((int) address, value);
+  return ModbusRTUServer.inputRegisterWrite(static_cast<int>(address), value);
 }
 
 /**
  * @brief Modbus coil write wrapper.
- *
  * @param[in] address Address of coil.
  * @param[in] value Value to write.
  * @return 1 for success, 0 for fail.
  */
 int coilWrite(const COIL address, const uint8_t value) {
-  return ModbusRTUServer.coilWrite((int) address, value);
+  return ModbusRTUServer.coilWrite(static_cast<int>(address), value);
 }
 
 /**
  * @brief Modbus coil read wrapper.
- *
  * @param[in] address Address of coil.
  * @return Read value.
  */
 bool coilRead(const COIL address) {
-  return 0 != ModbusRTUServer.coilRead((int) address);
+  return 0 != ModbusRTUServer.coilRead(static_cast<int>(address));
 }
 
 /**
  * @brief Convert distance in mm to motor steps.
- *
  * @param[in] stepperData actual stepper.
  * @param[in] distance in mm.
  * @return Steps count.
@@ -148,15 +142,16 @@ int32_t mmToSteps(const StepperData& stepperData, const int16_t distance) {
   if (0 == stepperData.wheelDiamMm) {
     return 0;
   }
-  return int32_t(
-    double(distance) / (double(stepperData.wheelDiamMm) * M_PI)
-      * (double(stepperData.gearRatio)/1000.0) * double(STEPS_REV)
+  return static_cast<int32_t>(
+     static_cast<double>(distance) /
+    (static_cast<double>(stepperData.wheelDiamMm) * M_PI) *
+    (static_cast<double>(stepperData.gearRatio) / 1000.0) *
+     static_cast<double>(STEPS_REV)
   );
 }
 
 /**
  * @brief Convert motor steps to distance in mm.
- *
  * @param[in] stepperData Actual stepper.
  * @param[in] steps Count steps.
  * @return Distance.
@@ -165,16 +160,14 @@ int16_t stepsToMm(const StepperData& stepperData, const int32_t steps) {
   if (0 == STEPS_REV || 0 == stepperData.gearRatio) {
     return 0;
   }
-  return int16_t(
-    double(steps) / double(STEPS_REV)
-    / (double(stepperData.gearRatio)/1000.0)
-    * (double(stepperData.wheelDiamMm) * M_PI)
+  return static_cast<int16_t>(
+    (static_cast<double>(steps) / static_cast<double>(STEPS_REV)) /
+    (static_cast<double>(stepperData.gearRatio) / 1000.0) *
+    (static_cast<double>(stepperData.wheelDiamMm) * M_PI)
   );
 }
 
-/**
- * @brief Re-Init steppers by actual stepper data.
- */
+/** @brief Re-Init steppers by actual stepper data. */
 void initSteppers() {
   static bool isSteppersInited = false;
   if (isSteppersInited) {
@@ -188,7 +181,8 @@ void initSteppers() {
   for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
     const StepperData& stepperData = controllerData.stepperData[i];
     steppers[i].setMaxSpeed(mmToSteps(stepperData, stepperData.maxSpeedMms));
-    steppers[i].setAcceleration(uint16_t(mmToSteps(stepperData, stepperData.maxAccMms2)));
+    steppers[i].setAcceleration(uint16_t(mmToSteps(
+      stepperData, stepperData.maxAccMms2)));
     steppers[i].reverse(0 == stepperData.isForward);
     steppers[i].enable();
   }
@@ -201,7 +195,6 @@ void initSteppers() {
 
 /**
  * @brief Update Modbus data by finished command.
- *
  * @param[in] status STS status to output in Modbus status register.
  */
 void updateStatus(const STS status) {
@@ -211,7 +204,6 @@ void updateStatus(const STS status) {
 
 /**
  * @brief Complete Modbus command execution by full stop & status output.
- *
  * @param[in] status STS status of command execution.
  */
 void completeCommand(const STS status) {
@@ -221,7 +213,6 @@ void completeCommand(const STS status) {
 
 /**
  * @brief Load controller data from EEPROM memory.
- *
  * @return Exit code.
  */
 uint8_t loadFromMemory() {
@@ -243,20 +234,19 @@ uint8_t loadFromMemory() {
       stepperData.wheelDiamMm = defaultData.wheelDiamMm;
     }
 
-    const uint8_t baseIndex = (uint8_t)(0 == i ? REG_HLD::MAX_SPD_L : REG_HLD::MAX_SPD_R);
-    holdingRegisterWrite((REG_HLD)(baseIndex + 0), stepperData.maxSpeedMms); // 4 9
-    holdingRegisterWrite((REG_HLD)(baseIndex + 1), stepperData.maxAccMms2 ); // 5 10
-    holdingRegisterWrite((REG_HLD)(baseIndex + 2), stepperData.gearRatio  ); // 6 11
-    holdingRegisterWrite((REG_HLD)(baseIndex + 3), stepperData.wheelDiamMm); // 7 12
-    holdingRegisterWrite((REG_HLD)(baseIndex + 4), stepperData.isForward  ); // 8 13
+    const uint8_t baseIndex =
+      (uint8_t)(0 == i ? REG_HLD::MAX_SPD_L : REG_HLD::MAX_SPD_R);
+    holdingRegisterWrite((REG_HLD)(baseIndex + 0), stepperData.maxSpeedMms);  // 4 9
+    holdingRegisterWrite((REG_HLD)(baseIndex + 1), stepperData.maxAccMms2 );  // 5 10
+    holdingRegisterWrite((REG_HLD)(baseIndex + 2), stepperData.gearRatio  );  // 6 11
+    holdingRegisterWrite((REG_HLD)(baseIndex + 3), stepperData.wheelDiamMm);  // 7 12
+    holdingRegisterWrite((REG_HLD)(baseIndex + 4), stepperData.isForward  );  // 8 13
   }
 
   return res;
 }
 
-/**
- * @brief Detect command by Modbus & execute it.
- */
+/** @brief Detect command by Modbus & execute it. */
 void processDirection() {
   for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
     const StepperData& stepperData = controllerData.stepperData[i];
@@ -292,31 +282,29 @@ void processDirection() {
   }
 }
 
-/**
- * @brief Detect command by Modbus & execute it.
- */
+/** @brief Detect command by Modbus & execute it. */
 void processCommand() {
   const int packetReceived = ModbusRTUServer.poll();
   if (!packetReceived) {
-    return; // no new packets
+    return;  // no new packets
   }
   const bool isCommandSend = coilRead(COIL::NEW_CMD);
   if (!isCommandSend) {
-    return; // no new commands
+    return;  // no new commands
   }
   // new command received
   coilWrite(COIL::NEW_CMD, 0);
   const CMD command = (CMD) holdingRegisterRead(REG_HLD::CMD);
-  switch (command) { // priority commands
+  switch (command) {  // priority commands
     case CMD::BRAKE:
     case CMD::STOP:
     case CMD::MODE: {
       for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
         switch (command) {
-          case CMD::BRAKE: // fall down
+          case CMD::BRAKE:  // fall down
           case CMD::MODE: { steppers[i].brake(); break; }
           case CMD::STOP: { steppers[i].stop();  break; }
-          default: {} // warning supress
+          default: {}  // warning supress
         }
       }
 
@@ -363,7 +351,7 @@ void processCommand() {
       processDirection();
       updateStatus(status);
     }
-    default: {} // warning supress
+    default: {}  // warning supress
   }
 
   if (isSteppersMoving) {
@@ -394,12 +382,18 @@ void processCommand() {
 
       for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
         StepperData& stepperData = controllerData.stepperData[i];
-        const uint8_t baseIndex = (uint8_t)(0 == i ? REG_HLD::MAX_SPD_L : REG_HLD::MAX_SPD_R);
-        stepperData.maxSpeedMms = holdingRegisterRead((REG_HLD)(baseIndex + 0)); // 4 9
-        stepperData.maxAccMms2  = holdingRegisterRead((REG_HLD)(baseIndex + 1)); // 5 10
-        stepperData.gearRatio   = holdingRegisterRead((REG_HLD)(baseIndex + 2)); // 6 11
-        stepperData.wheelDiamMm = holdingRegisterRead((REG_HLD)(baseIndex + 3)); // 7 12
-        stepperData.isForward   = holdingRegisterRead((REG_HLD)(baseIndex + 4)); // 8 13
+        const uint8_t baseIndex =
+          (uint8_t)(0 == i ? REG_HLD::MAX_SPD_L : REG_HLD::MAX_SPD_R);
+        stepperData.maxSpeedMms =
+          holdingRegisterRead((REG_HLD)(baseIndex + 0));  // 4 9
+        stepperData.maxAccMms2  =
+          holdingRegisterRead((REG_HLD)(baseIndex + 1));  // 5 10
+        stepperData.gearRatio   =
+          holdingRegisterRead((REG_HLD)(baseIndex + 2));  // 6 11
+        stepperData.wheelDiamMm =
+          holdingRegisterRead((REG_HLD)(baseIndex + 3));  // 7 12
+        stepperData.isForward   =
+          holdingRegisterRead((REG_HLD)(baseIndex + 4));  // 8 13
 
         if (0 == stepperData.maxSpeedMms) {
           status = STS::ERR_PARAMS;
@@ -433,7 +427,6 @@ void processCommand() {
 
 /**
  * @brief Execute emergency stop motors.
- *
  * @return true if emergency pin raised.
  */
 bool processEmergency() {
@@ -455,9 +448,7 @@ bool processEmergency() {
   return isEmergency;
 }
 
-/**
- * @brief Process all signals from wired remote control.
- */
+/** @brief Process all signals from wired remote control. */
 void processWires() {
   static MODE storedMode = mode;
   if (digitalRead((uint8_t) WRD_MODE_SWITCH_PIN)) {
@@ -490,9 +481,7 @@ void processWires() {
   }
 }
 
-/**
- * @brief Update steppers data in modbus registers.
- */
+/** @brief Update steppers data in modbus registers. */
 void updateCurrentStatus() {
   static unsigned long future = 0;
   const unsigned long now = millis();
@@ -517,20 +506,17 @@ void updateCurrentStatus() {
 
 /**
  * @brief Check critical condition and stops next execution if it's true.
- *
  * @param[in] check Condition.
  * @param[in] msg Message for print to Serial port.
  */
 void checkCriticalError(const bool check, const char* msg) {
   if (!check) {
     Serial.println(msg);
-    while (1);
+    while (1) {}
   }
 }
 
-/**
- * @brief Main setup procedure, execute once by start.
- */
+/** @brief Main setup procedure, execute once by start. */
 void setup() {
   Serial.begin(SERIAL_BAUD_RATE);
   controllerData.stepperData[0].isForward = 0;
@@ -540,21 +526,24 @@ void setup() {
     "Failed to start Modbus RTU Server!"
   );
   checkCriticalError(
-    ModbusRTUServer.configureCoils((int) COIL::START, (int) COIL::END),
-    "Failed to configure Coils"
+      ModbusRTUServer.configureCoils(
+        static_cast<int>(COIL::START), static_cast<int>(COIL::END))
+    , "Failed to configure Coils"
   );
   checkCriticalError(
-    ModbusRTUServer.configureInputRegisters((int) REG_INP::START, (int) REG_INP::END),
-    "Failed to configure Input Registers"
+      ModbusRTUServer.configureInputRegisters(
+        static_cast<int>(REG_INP::START), static_cast<int>(REG_INP::END))
+    , "Failed to configure Input Registers"
   );
   checkCriticalError(
-    ModbusRTUServer.configureHoldingRegisters((int) REG_HLD::START, (int) REG_HLD::END),
-    "Failed to configure Holding Registers"
+      ModbusRTUServer.configureHoldingRegisters(
+        static_cast<int>(REG_HLD::START), static_cast<int>(REG_HLD::END))
+    , "Failed to configure Holding Registers"
   );
 
   switch (loadFromMemory()) {
-    case 0:  { break; } // ok, loaded from memory
-    case 1:  { break; } // wrote default
+    case 0:  { break; }  // ok, loaded from memory
+    case 1:  { break; }  // wrote default
     case 2:  { Serial.println("Memory: too large size"); while (1); }
     default: { Serial.println("Memory: unknown error");  while (1); }
   }
@@ -577,17 +566,15 @@ void setup() {
   pinMode((uint8_t) EMERGENCY_STOP_PIN,  INPUT);
 }
 
-/**
- * @brief Main loop of controller, infinite.
- */
+/** @brief Main loop of controller, infinite. */
 void loop() {
   for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
-    steppers[i].tick(); // process motors
+    steppers[i].tick();  // process motors
   }
 
   updateCurrentStatus();
   if (processEmergency()) {
-    return; // there is emergency, stop processing
+    return;  // there is emergency, stop processing
   }
 
   processWires();

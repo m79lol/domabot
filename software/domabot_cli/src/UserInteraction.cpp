@@ -1,4 +1,8 @@
-
+/**
+ * @file UserInteraction.cpp
+ * @brief Domabot User Interaction class source file.
+ * @copyright Copyright 2025 m79lol
+*/
 #include <domabot_cli/UserInteraction.h>
 
 #include <iostream>
@@ -28,5 +32,4 @@ std::string UserInteraction::askInput(const std::string& sentence) try {
   return tmp;
 } defaultCatch
 
-
-} // Domabot
+}  // namespace Domabot

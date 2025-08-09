@@ -2,15 +2,17 @@
  * @file Exception.h
  * @brief Domabot Exception class header file.
  * @details Also contains support macros for back tracing.
+ * @copyright Copyright 2025 m79lol
 */
-#ifndef Domabot_Exception_h
-#define Domabot_Exception_h
+#ifndef DOMABOT_COMMON_LIB__EXCEPTION_H_
+#define DOMABOT_COMMON_LIB__EXCEPTION_H_
 
 #include <functional>
 #include <list>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace Domabot {
 
@@ -23,7 +25,7 @@ class Exception : public std::runtime_error {
   protected:
     using Childs =  std::list<std::string>;
 
-    Childs m_childs = {}; ///< exception messages on next (nested) level.
+    Childs m_childs = {};  ///< exception messages on next (nested) level.
 
     /**
      * @brief End method for error message generation by argument list.
@@ -58,14 +60,14 @@ class Exception : public std::runtime_error {
      * @brief Create Exception object from string.
      * @param[in] msg Source string.
      */
-    Exception(const std::string& msg = "");
+    explicit Exception(const std::string& msg = "");
 
     /**
      * @brief Create Exception object from std::exception.
      * @details Typically used in nested exceptions lists for backtracing.
      * @param[in] e Source exception.
      */
-    Exception(const std::exception& e);
+    explicit Exception(const std::exception& e);
 
     Exception(const Exception&) = default;
     Exception(Exception&&) = default;
@@ -173,7 +175,8 @@ class Exception : public std::runtime_error {
    * createMsg method
    * @return Next level exception for throw command.
    */
-  #define BackTrackMsg(child, msg) backTrack(__FILE__, __LINE__, __func__, child, msg)
+  #define BackTrackMsg(child, msg) \
+    backTrack(__FILE__, __LINE__, __func__, child, msg)
 
   /**
    * @brief Create next (current) back trace level.
@@ -183,15 +186,15 @@ class Exception : public std::runtime_error {
    * @return Next level exception for throw command.
    */
   #define BackTrack(child) backTrack(__FILE__, __LINE__, __func__, child)
-
-}; // Exception
+};  // Exception
 
 /**
  * @brief Defines typical catch block for back tracing.
  * @details Should use for every method/function without custom catch block.
  */
-#define defaultCatch catch (const std::exception& e) { throw Domabot::Exception::BackTrack(e); }
+#define defaultCatch \
+  catch (const std::exception& e) { throw Domabot::Exception::BackTrack(e); }
 
-} // Domabot
+}  // namespace Domabot
 
-#endif // Domabot_Exception_h
+#endif  // DOMABOT_COMMON_LIB__EXCEPTION_H_

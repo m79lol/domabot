@@ -1,3 +1,8 @@
+/**
+ * @file domabot_controller.cpp
+ * @brief Domabot Console Line Interface Node main source file.
+ * @copyright Copyright 2025 m79lol
+*/
 #include <domabot_cli/CLI.h>
 
 #include <rclcpp/rclcpp.hpp>

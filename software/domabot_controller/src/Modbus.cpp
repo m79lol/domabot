@@ -1,4 +1,8 @@
-
+/**
+ * @file Modbus.cpp
+ * @brief Domabot Modbus class source file.
+ * @copyright Copyright 2025 m79lol
+*/
 #include <domabot_controller/Modbus.h>
 
 namespace Domabot {
@@ -30,7 +34,7 @@ Modbus::Modbus(
 } catch (const std::exception& e) {
   free();
   throw Exception::BackTrack(e);
-};
+}
 
 void Modbus::free() noexcept {
   if (nullptr != m_cntx) {
@@ -39,7 +43,7 @@ void Modbus::free() noexcept {
     modbus_free(m_cntx);
     m_cntx = nullptr;
   }
-};
+}
 
 Modbus::~Modbus() noexcept {
   free();
@@ -101,8 +105,11 @@ Modbus::CoilsValues Modbus::readCoils(
   ) {
     std::vector<uint8_t> tmp(cnt, 0);
     runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
-      return (int) tmp.size() == modbus_read_bits(
-        cntx, (int) startAddress, (int) tmp.size(), tmp.data());
+      return static_cast<int>(tmp.size()) == modbus_read_bits(
+          cntx
+        , static_cast<int>(startAddress)
+        , static_cast<int>(tmp.size())
+        , tmp.data());
     });
 
     std::vector<bool> coils(cnt, false);
@@ -133,8 +140,11 @@ void Modbus::writeCoils(
         coils[i] = values[i] ? 1 : 0;
       }
 
-      return (int) coils.size() == modbus_write_bits(
-        cntx, (int) startAddress, (int) coils.size(), coils.data());
+      return static_cast<int>(coils.size()) == modbus_write_bits(
+          cntx
+        , static_cast<int>(startAddress)
+        , static_cast<int>(coils.size())
+        , coils.data());
     });
   };
 
@@ -155,8 +165,11 @@ Modbus::InputRegistersValues Modbus::readInputRegisters(
   ) {
     std::vector<uint16_t> tmp(cnt, 0);
     runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
-      return (int) tmp.size() == modbus_read_input_registers(
-        cntx, (int) startAddress, (int) tmp.size(), tmp.data());
+      return static_cast<int>(tmp.size()) == modbus_read_input_registers(
+          cntx
+        , static_cast<int>(startAddress)
+        , static_cast<int>(tmp.size())
+        , tmp.data());
     });
     return tmp;
   };
@@ -178,8 +191,11 @@ Modbus::HoldingRegistersValues Modbus::readHoldingRegisters(
   ) {
     std::vector<uint16_t> tmp(cnt, 0);
     runModbusOperation([&tmp, &startAddress](modbus_t* cntx){
-      return (int) tmp.size() == modbus_read_registers(
-        cntx, (int) startAddress, (int) tmp.size(), tmp.data());
+      return static_cast<int>(tmp.size()) == modbus_read_registers(
+          cntx
+        , static_cast<int>(startAddress)
+        , static_cast<int>(tmp.size())
+        , tmp.data());
     });
     return tmp;
   };
@@ -202,12 +218,15 @@ void Modbus::writeHoldingRegisters(
     const uint8_t startAddress, const std::vector<uint16_t>& values
   ) {
     runModbusOperation([&startAddress, &values](modbus_t* cntx) {
-      return (int) values.size() == modbus_write_registers(
-        cntx, (int) startAddress, (int) values.size(), values.data());
+      return static_cast<int>(values.size()) == modbus_write_registers(
+          cntx
+        , static_cast<int>(startAddress)
+        , static_cast<int>(values.size())
+        , values.data());
     });
   };
 
   writeItems<REG_HLD, uint16_t>(registerValues, writeFunc);
 } defaultCatch
 
-} // Domabot
+}  // namespace Domabot

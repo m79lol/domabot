@@ -1,20 +1,23 @@
 /**
  * @file UserInteraction.h
  * @brief Domabot User Interaction class header file.
+ * @copyright Copyright 2025 m79lol
 */
-#ifndef Domabot_UserInteraction_h
-#define Domabot_UserInteraction_h
+#ifndef DOMABOT_CLI__USERINTERACTION_H_
+#define DOMABOT_CLI__USERINTERACTION_H_
 
 #include <domabot_common_lib/Exception.h>
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <string>
+#include <vector>
 
 namespace Domabot {
 
 /**
  * @brief User Interaction tools.
- *
  * @details Full static class for different method for interaction user by
  * standard console in & out threads.
  */
@@ -24,7 +27,6 @@ class UserInteraction {
      * @brief Ask user about simple closed question.
      * @details Question has only yes or no answer. Hint about that will be append
      * to question string.
-     *
      * @param[in] question Question text
      * @return true if user answer is "yes", otherwise if answer
      * was "no".
@@ -35,7 +37,6 @@ class UserInteraction {
      * @brief Ask user input some string value.
      * @details Also used as pause function for await any user attention
      * to continue.
-     *
      * @param[in] sentence Ask text.
      * @return User intput string.
      */
@@ -48,16 +49,15 @@ class UserInteraction {
      */
     template<typename ResultType>
     struct Option {
-      const std::string m_shortcut; ///< Shortcut option name.
-      const std::string m_description; ///< Full option text.
-      const ResultType m_result; ///< Enum item linked to this option.
+      const std::string m_shortcut;  ///< Shortcut option name.
+      const std::string m_description;  ///< Full option text.
+      const ResultType m_result;  ///< Enum item linked to this option.
     };
 
     /**
      * @brief Ask user and propose list of answer options.
-     * @details User may choose only one option for answer. Method requires
-     * pre define ResultType enum class for options.
-     *
+     * @details User may choose only one option for answer.
+     * @tparam ResultType Required predefined enum class with options.
      * @param[in] preface Ask text.
      * @param[in] options Array of answer options as vector of Option struct
      * @return User choosen option.
@@ -72,7 +72,7 @@ class UserInteraction {
       }
 
       size_t maxShortcutLength = 0;
-      for (const auto &option: options) {
+      for (const auto &option : options) {
         maxShortcutLength = std::max(maxShortcutLength, option.m_shortcut.size());
       }
 
@@ -93,9 +93,8 @@ class UserInteraction {
         }
       }
     } defaultCatch
+};  // UserInteraction
 
-}; // UserInteraction
+}  // namespace Domabot
 
-} // Domabot
-
-#endif // Domabot_UserInteraction_h
+#endif  // DOMABOT_CLI__USERINTERACTION_H_

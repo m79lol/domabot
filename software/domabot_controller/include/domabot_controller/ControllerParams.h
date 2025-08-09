@@ -1,15 +1,18 @@
 /**
  * @file ControllerParams.h
  * @brief Domabot Controller Params header file.
+ * @copyright Copyright 2025 m79lol
 */
-#ifndef Domabot_ControllerParams_h
-#define Domabot_ControllerParams_h
+#ifndef DOMABOT_CONTROLLER__CONTROLLERPARAMS_H_
+#define DOMABOT_CONTROLLER__CONTROLLERPARAMS_H_
 
 #include <domabot_common_lib/Exception.h>
 
 #include <rclcpp/rclcpp.hpp>
 
 #include <algorithm>
+#include <string>
+#include <utility>
 
 namespace Domabot {
 
@@ -19,10 +22,10 @@ namespace Domabot {
  */
 class ControllerParams {
   protected:
-
     /**
      * @brief Find a value in allowed list.
-     *
+     * @tparam T Type of allowed item.
+     * @tparam K Size of array with allowed items.
      * @param[in] allowed Predefined size array with allowed values.
      * @param[in] value Validating value.
      * @return Validated value (architecture work around).
@@ -42,9 +45,16 @@ class ControllerParams {
           std::next(allowed.rbegin()), allowed.rend(), std::to_string(allowed[0])
         , concat);
 
-      throw Exception::createError("The value ", value, " is not within allowed values: ", allowedStr);
+      throw Exception::createError("The value ", value,
+        " is not within allowed values: ", allowedStr);
     } defaultCatch
 
+    /**
+     * @brief Checks that string parameter is not empty string.
+     * @param[in] parameter Ref to ROS string parameter.
+     * @return Obtained value from ROS parameter.
+     * @throws if parameter return empty string.
+     */
     static std::string checkIsEmpty(const rclcpp::Parameter& parameter);
 
   public:
@@ -106,9 +116,8 @@ class ControllerParams {
      * @return Obtained slave id.
      */
     static unsigned int getSlaveId (rclcpp::Node& node);
+};  // ControllerParams
 
-}; // ControllerParams
+}  // namespace Domabot
 
-} // Domabot
-
-#endif // Domabot_ControllerParams_h
+#endif  // DOMABOT_CONTROLLER__CONTROLLERPARAMS_H_
