@@ -26,6 +26,7 @@
 
 #include <memory>
 #include <mutex>
+#include <string>
 
 namespace Domabot {
 
@@ -78,7 +79,7 @@ class CLI : public rclcpp::Node {
     ) try {
       if (currentValue.empty()) {
         throw Exception::createError(
-          "Empty current value for setting: ",settingName);
+          "Empty current value for setting: ", settingName);
       }
 
       static const char emptyChar = 'X';
