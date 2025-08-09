@@ -25,6 +25,7 @@ ament_target_dependencies(${PROJECT_NAME}
 
 include_directories(
   include
+  "../../firmware/include"
   ${domabot_common_lib_INCLUDE_DIRS}
 )
 

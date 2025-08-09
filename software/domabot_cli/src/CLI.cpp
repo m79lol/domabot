@@ -4,10 +4,8 @@
  * @copyright Copyright 2025 m79lol
 */
 #include <domabot_cli/CLI.h>
-#include <domabot_cli/StringTools.h>
-#include <domabot_cli/UserInteraction.h>
 
-#include <domabot_common_lib/RosService.h>
+#include <domabot_firmware/firmware_data_types.h>
 
 namespace Domabot {
 
@@ -25,6 +23,26 @@ CLI::CLI() try : Node("domabot_cli") {
   m_clientSetMode      = create_client<DI::srv::SetMode>("set_mode");
   m_clientSetSettings  = create_client<DI::srv::SetSettings>("set_settings");
   m_clientStop         = create_client<DI::srv::Stop>("stop");
+} defaultCatch
+
+bool CLI::inputSettings(DI::msg::ControllerSettings newSettings) try {
+  const auto resData = callService<DI::srv::GetData>(
+      m_clientGetData
+    , std::make_shared<DI::srv::GetData::Request>()
+  );
+
+  const auto& oldSettings = resData->settings;
+  bool updated = false;
+  updated |= inputSettingValue(
+    "update rate", newSettings.update_rate, oldSettings.update_rate);
+  updated |= inputStepperSettings(
+    newSettings.stepper_left, oldSettings.stepper_left
+  );
+  updated |= inputStepperSettings(
+    newSettings.stepper_right, oldSettings.stepper_right
+  );
+
+  return updated;
 } defaultCatch
 
 void CLI::statusCallback(const DI::msg::Status& msg) try {
@@ -49,7 +67,7 @@ void CLI::runCLI() try {
   bool isTerminate = false;
   while (rclcpp::ok() && !isTerminate) {
     const auto command =  UserInteraction::proposeOptions<USER_COMMAND>(
-        "Available commands:"
+        "Select command to send controller.\nAvailable commands:"
       , {
           {"br", "Brake"          , USER_COMMAND::BRAKE }
         , {"st", "Stop"           , USER_COMMAND::STOP  }
@@ -63,19 +81,15 @@ void CLI::runCLI() try {
 
     switch (command) {
       case USER_COMMAND::BRAKE: {
-        RosService::callAndVerifyService<DI::srv::Brake>(
-            shared_from_this()
-          , get_logger().get_child("service")
-          , m_clientBrake
+        callService<DI::srv::Brake>(
+            m_clientBrake
           , std::make_shared<DI::srv::Brake::Request>()
         );
         break;
       }
       case USER_COMMAND::STOP: {
-        RosService::callAndVerifyService<DI::srv::Stop>(
-            shared_from_this()
-          , get_logger().get_child("service")
-          , m_clientStop
+        callService<DI::srv::Stop>(
+            m_clientStop
           , std::make_shared<DI::srv::Stop::Request>()
         );
         break;
@@ -88,24 +102,51 @@ void CLI::runCLI() try {
         req->target_position_right = StringTools::stringToNumber<int16_t>(
           UserInteraction::askInput("Enter target position for right stepper: "));
 
-        RosService::callAndVerifyService<DI::srv::Move>(
-            shared_from_this()
-          , get_logger().get_child("service")
-          , m_clientMove
-          , req
-        );
+        callService<DI::srv::Move>(m_clientMove, req);
         break;
       }
       case USER_COMMAND::UPDATE: {
+        const auto req = std::make_shared<DI::srv::SetSettings::Request>();
+        inputSettings(req->settings);
+        callService<DI::srv::SetSettings>(m_clientSetSettings, req);
         break;
       }
       case USER_COMMAND::SAVE: {
+        DI::msg::ControllerSettings newSettings;
+        const bool updated = inputSettings(newSettings);
+
+        const auto req = std::make_shared<DI::srv::SaveSettings::Request>();
+        if (updated) {
+          req->settings.push_back(newSettings);
+        }
+        callService<DI::srv::SaveSettings>(m_clientSaveSettings, req);
         break;
       }
       case USER_COMMAND::MODE: {
+        const auto req = std::make_shared<DI::srv::SetMode::Request>();
+        req->mode.mode = static_cast<uint8_t>(UserInteraction::proposeOptions<MODE>(
+          "Select mode on change\nAvailable operation mods:"
+          , {
+              {"t", "Target"   , MODE::TRG  }
+            , {"d", "Direction", MODE::DRCT }
+            , {"w", "Wired",     MODE::WRD  }
+          }));
+        callService<DI::srv::SetMode>(m_clientSetMode, req);
         break;
       }
       case USER_COMMAND::DIR: {
+        const auto req = std::make_shared<DI::srv::SetDirection::Request>();
+        req->direction.direction = static_cast<uint8_t>(
+          UserInteraction::proposeOptions<DIR>(
+            "Select direction on change\nAvailable directions:"
+            , {
+                {"s", "Target"   , DIR::STOP     }
+              , {"f", "Direction", DIR::FORWARD  }
+              , {"r", "Direction", DIR::RIGHT    }
+              , {"b", "Direction", DIR::BACKWARD }
+              , {"l", "Direction", DIR::LEFT     }
+            }));
+        callService<DI::srv::SetDirection>(m_clientSetDirection, req);
         break;
       }
       case USER_COMMAND::QUIT: {

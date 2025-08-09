@@ -93,11 +93,11 @@ enum class DIR : uint8_t {
 
 /** @brief Stepper statuses from GyverStepper lib. */
 enum class STPR_STS : uint8_t {
-  STOPPED                = 0,  ///< No motion
-  MOVING_TO_TARGET       = 1,  ///< Moving to target (used in TRG mode)
-  MOVING_TO_PAUSE_POINT  = 2,  ///< Never used
-  MOVING_AT_SPEED        = 3,  ///< Moving at required speed (used in DRCT & WRD modes)
-  SLOWING_DOWN           = 4   ///< Appears during STOP command execution
+  STOPPED               = 0,  ///< No motion
+  MOVING_TO_TARGET      = 1,  ///< Moving to target (used in TRG mode)
+  MOVING_TO_PAUSE_POINT = 2,  ///< Never used
+  MOVING_AT_SPEED       = 3,  ///< Moving at required speed (used in DRCT & WRD modes)
+  SLOWING_DOWN          = 4   ///< Appears during STOP command execution
 };
 
 #endif  // DOMABOT_FIRMWARE__FIRMWARE_DATA_TYPES_H_
