@@ -27,6 +27,7 @@ ament_target_dependencies(${PROJECT_NAME}
 include_directories(
   include
   "../../firmware/include"
+  "../other/magic_enum/include"
   "/usr/include/modbus"
   ${domabot_common_lib_INCLUDE_DIRS}
 )

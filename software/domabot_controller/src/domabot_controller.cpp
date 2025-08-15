@@ -9,7 +9,7 @@
 
 #include <iostream>
 
-int main(int argc, char * argv[]) try {
+int main(int argc, char* argv[]) try {
   rclcpp::init(argc, argv);
 
   rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 2);

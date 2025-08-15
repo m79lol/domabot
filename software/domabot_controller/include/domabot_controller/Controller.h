@@ -24,6 +24,8 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <magic_enum/magic_enum.hpp>
+
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -76,75 +78,80 @@ class Controller : public rclcpp::Node {
     MODE m_currentMode = MODE::TRG;  ///< Current robot behavior.
 
     /**
-     * @brief Get printable name of command.
-     * @param[in] command Robot command from CMD enum.
-     * @return String command name.
+     * @brief Check that value in enum.
+     * @tparam EnumType Already declared enum for check.
+     * @param[in] value Checking value as register value.
+     * @param[in] enumName Printable enum's name.
+     * @param[in] selfCheck Check for internal use.
+     * @return Checked item of EnumType.
+     * @throws If items outside enum bounds and this is not self check.
      */
-    static const std::string& getCommandName(const CMD command);
-
-    /**
-     * @brief Get printable name of command execution status.
-     * @param[in] status Status from STS enum.
-     * @return String status name.
-     */
-    static const std::string& getStatusName(const STS status);
-
-    /**
-     * @brief Get printable name of robot operation mode.
-     * @param[in] mode Mode from MODE enum.
-     * @return String mode name.
-     */
-    static const std::string& getModeName(const MODE mode);
+    template<typename EnumType> static EnumType checkEnumItem(
+        const uint16_t value
+      , const std::string& enumName
+      , const bool selfCheck = false
+    ) try {
+      const auto item = magic_enum::enum_cast<EnumType>(value);
+      if (!item.has_value() && !selfCheck) {
+        throw Exception::createError("Unknown ", enumName, " item: ", value);
+      }
+      return item.value();
+    } defaultCatch
 
     /**
      * @brief Check obtained execution command status.
      * @details Useful for obtained execution status from external source and
      * detection protocol errors.
-     * @param[in] status Command execution status.
+     * @param[in] value Command execution status as register value.
      * @param[in] selfCheck Flag for internal use, disable throwing
      * exceptions.
+     * @return Checked status as item of STS enum.
      * @throws If status is not OK.
      */
-    void checkStatus(const STS status, const bool selfCheck = false) const;
+    STS checkStatus(const uint16_t value, const bool selfCheck = false) const;
 
     /**
      * @brief Check obtained mode for valid value.
      * @details Useful for obtained mode from external source and
      * detection protocol errors.
-     * @param[in] mode Mode from MODE enum.
+     * @param[in] value Mode as register value.
      * @param[in] selfCheck Flag for internal use, disable throwing
      * exceptions for hardware activated modes.
+     * @return Checked mode as item of MODE enum.
      * @throws If mode outside MODE enum values, or mode can't be
      * activated by software way.
      */
-    static void checkMode(const MODE mode, const bool selfCheck = false);
+    static MODE checkMode(const uint16_t value, const bool selfCheck = false);
 
     /**
      * @brief Check obtained direction for valid value.
      * @details Useful for obtained direction from external source and
      * detection protocol errors.
-     * @param[in] direction Mode from DIR enum.
+     * @param[in] value Direction as register value.
+     * @return Checked direction as item of DIR enum.
      * @throws If direction outside DIR enum values.
      */
-    static void checkDirection(const DIR direction);
+    static DIR checkDirection(const uint16_t value);
 
     /**
      * @brief Check obtained stepper status for valid value.
      * @details Useful for obtained direction from external source and
      * detection protocol errors.
-     * @param[in] stepperStatus Stepper status from STPR_STS enum.
+     * @param[in] value Stepper status as register value.
+     * @return Checked stepper status as item of STPR_STS enum.
      * @throws If stepper status outside STPR_STS enum values.
      */
-    static void checkStepperStatus(const STPR_STS stepperStatus);
+    static STPR_STS checkStepperStatus(const uint16_t value);
 
     /**
      * @brief Check obtained command for valid value.
      * @details Useful for obtained command from external source and
      * detection protocol errors.
-     * @param[in] command Command from CMD enum.
+     * @param[in] value Command as register value.
+     * @return Checked command as item of CMD enum.
      * @throws If command outside CMD enum values.
      */
-    static void checkCommand(const CMD command);
+    static CMD checkCommand(const uint16_t value);
 
     /**
      * @brief Write controller settings to Modbus Holding registers.

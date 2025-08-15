@@ -35,8 +35,7 @@ Controller::Controller() try : Node("domabot_controller") {
   });
 
   const auto pubRate = holdingRegs.at(REG_HLD::RATE);
-  m_currentMode = (MODE) holdingRegs.at(REG_HLD::MODE);
-  checkMode(m_currentMode, true);
+  m_currentMode = checkMode(holdingRegs.at(REG_HLD::MODE), true);
 
   m_pubStatus = create_publisher<DI::msg::Status>(
     m_statusTopicName, 1);
@@ -139,146 +138,41 @@ Controller::Controller() try : Node("domabot_controller") {
   }
 } defaultCatch
 
-#define CASE_ITEM(TYPE, ITEM) \
-  case TYPE::ITEM: { \
-    static const std::string str = #ITEM; \
-    return str; \
-  }
-
-const std::string& Controller::getCommandName(const CMD command) try {
-  #define CASE_COMMAND(COMMAND) CASE_ITEM(CMD, COMMAND)
-  switch (command) {
-    CASE_COMMAND(BRAKE);
-    CASE_COMMAND(DIR);
-    CASE_COMMAND(MODE);
-    CASE_COMMAND(MOVE);
-    CASE_COMMAND(STOP);
-    CASE_COMMAND(UPDATE);
-    default: {
-      throw Exception::createError("Unknow command ", (uint8_t) command, "!");
-    }
-  }
-  #undef CASE_COMMAND
-} defaultCatch
-
-const std::string& Controller::getStatusName(const STS status) try {
-  #define CASE_STATUS(STATUS) CASE_ITEM(STS, STATUS)
-  switch (status) {
-    CASE_STATUS(OK);
-    CASE_STATUS(ERR_MOVING);
-    CASE_STATUS(ERR_CMD);
-    CASE_STATUS(ERR_PARAMS);
-    CASE_STATUS(ERR_MODE);
-    CASE_STATUS(ERR_DIR);
-    CASE_STATUS(EMERGENCY);
-    CASE_STATUS(ERR_UNKNOWN);
-    default: {
-      throw Exception::createError("Unknow status ", (uint8_t) status, "!");
-    }
-  }
-  #undef CASE_STATUS
-} defaultCatch
-
-const std::string& Controller::getModeName(const MODE mode) try {
-  #define CASE_MODE(MODE_) CASE_ITEM(MODE, MODE_)
-  switch (mode) {
-    CASE_MODE(TRG);
-    CASE_MODE(DRCT);
-    CASE_MODE(WRD);
-    default: {
-      throw Exception::createError("Unknow mode ", (uint8_t) mode, "!");
-    }
-  }
-  #undef CASE_MODE
-} defaultCatch
-
-#undef CASE_ITEM
-
-void Controller::checkStatus(const STS status, const bool selfCheck) const try {
-  switch (status) {
-    case STS::OK:          { break; }
-    case STS::ERR_MOVING:  { break; }
-    case STS::ERR_CMD:     { break; }
-    case STS::ERR_PARAMS:  { break; }
-    case STS::ERR_MODE:    { break; }
-    case STS::ERR_DIR:     { break; }
-    case STS::EMERGENCY:   { break; }
-    case STS::ERR_UNKNOWN: { break; }
-    default: {
-      if (selfCheck) {
-        throw Exception::createError("Unknow status ", (uint8_t) status, "!");
-      }
-    }
-  }
-
-  if (selfCheck) {
-    return;
+STS Controller::checkStatus(const uint16_t value, const bool selfCheck) const try {
+  const STS status = checkEnumItem<STS>(value, "status", selfCheck);
+  if (!selfCheck) {
+    return status;
   }
 
   const std::string msg = Exception::createMsg(
-    "Command execution status: ", getStatusName(status));
+    "Command execution status: ", magic_enum::enum_name(status));
   if (STS::OK == status) {
     RCLCPP_INFO_STREAM(get_logger(), msg);
-    return;
+    return status;
   }
 
   RCLCPP_ERROR_STREAM(get_logger(), msg);
   throw Exception::createError(msg);
 } defaultCatch
 
-void Controller::checkMode(const MODE mode, const bool selfCheck) try {
-  switch (mode) {
-    case MODE::TRG:  { break; }
-    case MODE::DRCT: { break; }
-    case MODE::WRD: {
-      if (!selfCheck) {
-        throw Exception::createError(
-          "Mode wired may activate only by hardware switch!");
-      }
-      break;
-    }
-    default: { throw Exception::createError("Unknown mode: ", (uint8_t) mode); }
+MODE Controller::checkMode(const uint16_t value, const bool selfCheck) try {
+  const MODE mode = checkEnumItem<MODE>(value, "mode", selfCheck);
+  if (MODE::WRD == mode && !selfCheck) {
+    throw Exception::createError(
+      "Mode wired may activate only by hardware switch!");
   }
 } defaultCatch
 
-void Controller::checkDirection(const DIR direction) try {
-  switch (direction) {
-    case DIR::BACKWARD: { break; }
-    case DIR::FORWARD:  { break; }
-    case DIR::LEFT:     { break; }
-    case DIR::RIGHT:    { break; }
-    case DIR::STOP:     { break; }
-    default: {
-      throw Exception::createError("Unknown direction: ", (uint8_t) direction); }
-  }
+DIR Controller::checkDirection(const uint16_t value) try {
+  checkEnumItem<DIR>(value, "direction");
 } defaultCatch
 
-void Controller::checkStepperStatus(const STPR_STS stepperStatus) try {
-  switch (stepperStatus) {
-    case STPR_STS::STOPPED:               { break; }
-    case STPR_STS::MOVING_TO_TARGET:      { break; }
-    case STPR_STS::MOVING_TO_PAUSE_POINT: { break; }
-    case STPR_STS::MOVING_AT_SPEED:       { break; }
-    case STPR_STS::SLOWING_DOWN:          { break; }
-    default: {
-      throw Exception::createError(
-        "Unknown stepper status: ", (uint8_t) stepperStatus);
-    }
-  }
+STPR_STS Controller::checkStepperStatus(const uint16_t value) try {
+  checkEnumItem<STPR_STS>(value, "stepper status");
 } defaultCatch
 
-void Controller::checkCommand(const CMD command) try {
-  switch (command) {
-    case CMD::BRAKE:  { break; }
-    case CMD::STOP:   { break; }
-    case CMD::MOVE:   { break; }
-    case CMD::UPDATE: { break; }
-    case CMD::SAVE:   { break; }
-    case CMD::MODE:   { break; }
-    case CMD::DIR:    { break; }
-    default: {
-      throw Exception::createError("Unknown command: ", (uint8_t) command); }
-  }
+CMD Controller::checkCommand(const uint16_t value) try {
+  checkEnumItem<CMD>(value, "command");
 } defaultCatch
 
 void Controller::setSettingsToRegisters(
@@ -319,9 +213,10 @@ void Controller::setSettingsToRegisters(
 } defaultCatch
 
 void Controller::runCommand(const CMD cmd) try {
-  RCLCPP_INFO_STREAM(get_logger(), "Execute command: " << getCommandName(cmd));
+  checkCommand((uint16_t) cmd);
 
-  checkCommand(cmd);
+  const auto commandName = magic_enum::enum_name(cmd);
+  RCLCPP_INFO_STREAM(get_logger(), "Execute command: " << commandName);
 
   switch (cmd) {
     case CMD::MODE: { [[fallthrough]]; }
@@ -330,7 +225,7 @@ void Controller::runCommand(const CMD cmd) try {
     case CMD::UPDATE: {
       if (m_isCommandExecuting) {
         throw Exception::createError(
-            "Can't execute command ", getCommandName(cmd)
+            "Can't execute command ", commandName
           , " during executing another command!");
       }
       break;
@@ -338,9 +233,10 @@ void Controller::runCommand(const CMD cmd) try {
     case CMD::DIR: {
       if (MODE::DRCT != m_currentMode) {
         throw Exception::createError(
-            "Can't execute command ", getCommandName(cmd)
-          , " in mode ", getModeName(m_currentMode)
-          , "! This command execute only in ", getModeName(MODE::DRCT), " mode.");
+            "Can't execute command ", commandName
+          , " in mode ", magic_enum::enum_name(m_currentMode)
+          , "! This command execute only in "
+          , magic_enum::enum_name(MODE::DRCT), " mode.");
       }
       break;
     }
@@ -383,7 +279,7 @@ void Controller::runCommand(const CMD cmd) try {
     throw Exception::createError("Invoked rclcpp::shutdown!");
   }
 
-  const STS status = (STS) m_modbus->readInputRegister(REG_INP::STS);
+  const uint16_t status = m_modbus->readInputRegister(REG_INP::STS);
   m_modbus->writeCoil(COIL::NEW_STS, false);
   checkStatus(status);
 } defaultCatch
@@ -463,14 +359,14 @@ void Controller::getDataSrvCallback(
     , REG_HLD::DIR
   });
 
-  checkStatus((STS) inputRegs.at(REG_INP::STS), true);
+  checkStatus(inputRegs.at(REG_INP::STS), true);
 
-  checkCommand((CMD) holdingRegs.at(REG_HLD::CMD));
-  checkMode((MODE) holdingRegs.at(REG_HLD::MODE), true);
-  checkDirection((DIR) holdingRegs.at(REG_HLD::DIR));
+  checkCommand(holdingRegs.at(REG_HLD::CMD));
+  checkMode(holdingRegs.at(REG_HLD::MODE), true);
+  checkDirection(holdingRegs.at(REG_HLD::DIR));
 
-  checkStepperStatus((STPR_STS) inputRegs.at(REG_INP::STPR_L));
-  checkStepperStatus((STPR_STS) inputRegs.at(REG_INP::STPR_R));
+  checkStepperStatus(inputRegs.at(REG_INP::STPR_L));
+  checkStepperStatus(inputRegs.at(REG_INP::STPR_R));
 
   auto& status = res->status;
   status.controller.status      = inputRegs.at(REG_INP::STS);
@@ -555,7 +451,7 @@ void Controller::setDirectionSrvCallback(
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "SetDirection service called.");
 
-  checkDirection((DIR) req->direction.direction);
+  checkDirection(req->direction.direction);
   m_modbus->writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
 
   processRequestCommand<DI::srv::SetDirection>(res, CMD::DIR);
@@ -569,7 +465,7 @@ void Controller::setModeSrvCallback(
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "SetMode service called.");
 
-  checkMode((MODE) req->mode.mode);
+  checkMode(req->mode.mode);
   m_modbus->writeHoldingRegister(REG_HLD::MODE, req->mode.mode);
 
   processRequestCommand<DI::srv::SetMode>(res, CMD::MODE);
