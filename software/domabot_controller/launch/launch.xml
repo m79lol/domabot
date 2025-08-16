@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <node
+    pkg="domabot_controller"
+    exec="domabot_controller_node"
+    output="screen"
+    ros_args="--log-level domabot_controller:=DEBUG --disable-rosout-logs"
+    launch-prefix="gdb --args "
+  >
+    <param name="baud_rate" value="9600" />
+    <param name="data_bits" value="8" />
+    <param name="parity" value="None" />
+    <param name="path" value="/dev/ttyACM0" />
+    <param name="stop_bits" value="1" />
+    <param name="modbus_slave_id" value="1" />
+  </node>
+</launch>

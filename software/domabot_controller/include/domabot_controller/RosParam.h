@@ -45,10 +45,10 @@ template<typename T> class RosParam {
      */
     RosParam(
       rclcpp::Node& node,
-      const std::string name,
-      const T defaultValue,
-      const std::function<T (const rclcpp::Parameter&)> validate,
-      const std::string description = ""
+      const std::string& name,
+      const T& defaultValue,
+      const std::function<T (const rclcpp::Parameter&)>& validate,
+      const std::string& description = ""
     ) try : m_node(node), m_name(name), m_validate(validate) {
       auto descriptor = rcl_interfaces::msg::ParameterDescriptor{};
       descriptor.description = description;

@@ -32,21 +32,26 @@ class ControllerParams {
      * @throws if value not in allowed values list.
      */
     template <typename T, std::size_t K>
-    static T checkInArray(const std::array<T, K>& allowed, const T value) try {
+    static T checkInArray(const std::array<T, K>& allowed, const T& value) try {
       const auto it = std::find(std::begin(allowed), std::end(allowed), value);
       if (it != allowed.end()) {
         return value;
       }
 
-      const auto concat = [](std::string a, const int b) {
-        return std::move(a) + ", " + std::to_string(b);
+      const auto to_string = [](const T& b) {
+        std::stringstream ss;
+        ss << b;
+        return ss.str();
+      };
+      const auto concat = [&to_string](std::string a, const T& b) {
+        return std::move(a) + ", " + to_string(b);
       };
       const std::string allowedStr = std::accumulate(
-          std::next(allowed.rbegin()), allowed.rend(), std::to_string(allowed[0])
+          std::next(allowed.begin()), allowed.end(), to_string(allowed[0])
         , concat);
 
-      throw Exception::createError("The value ", value,
-        " is not within allowed values: ", allowedStr);
+      throw Exception::createError("The value \"", value,
+        "\" is not within allowed values: [ ", allowedStr, " ]");
     } defaultCatch
 
     /**
@@ -89,7 +94,7 @@ class ControllerParams {
      * @param[in] node Pointer to current node instance.
      * @return Obtained parity.
      */
-    static char         getParity  (rclcpp::Node& node);
+    static std::string  getParity  (rclcpp::Node& node);
 
     /**
      * @brief Get path to RTU serial socket from ROS parameters.

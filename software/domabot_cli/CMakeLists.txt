@@ -12,12 +12,12 @@ find_package(rclcpp_components REQUIRED)
 find_package(domabot_interfaces REQUIRED)
 find_package(domabot_common_lib REQUIRED)
 
-add_executable(${PROJECT_NAME}
+add_executable(${PROJECT_NAME}_node
   src/${PROJECT_NAME}.cpp
   src/CLI.cpp
   src/UserInteraction.cpp
 )
-ament_target_dependencies(${PROJECT_NAME}
+ament_target_dependencies(${PROJECT_NAME}_node
   rclcpp
   domabot_interfaces
   domabot_common_lib
@@ -29,12 +29,16 @@ include_directories(
   ${domabot_common_lib_INCLUDE_DIRS}
 )
 
-target_link_libraries(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME}_node
   domabot_common_lib::domabot_common_lib
 )
 
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME})
+
 install(TARGETS
-  ${PROJECT_NAME}
+  ${PROJECT_NAME}_node
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

@@ -43,16 +43,16 @@ unsigned int ControllerParams::getDataBits(rclcpp::Node& node) try {
   ).getValue();
 } defaultCatch
 
-char ControllerParams::getParity(rclcpp::Node& node) try {
-  return RosParam<char>(
+std::string ControllerParams::getParity(rclcpp::Node& node) try {
+  return RosParam<std::string>(
       node
     , "parity"
-    , 'N'
+    , std::string("N")
     , [](const rclcpp::Parameter& parameter) {
-      constexpr const std::array<char, 3> allowed = { 'N', 'E', 'O' };
-      return checkInArray(allowed, checkIsEmpty(parameter).at(0));
+      const std::array<std::string, 3> allowed = { "None", "Even", "Odd" };
+      return checkInArray(allowed, checkIsEmpty(parameter));
     }
-    , "Parity for RTU: [N,E,O]. Default is N."
+    , "Parity for RTU: [None,Even,Odd]. Default is None."
   ).getValue();
 } defaultCatch
 
@@ -74,7 +74,7 @@ unsigned int ControllerParams::getStopBits(rclcpp::Node& node) try {
     , "stop_bits"
     , '1'
     , [](const rclcpp::Parameter& parameter) {
-      constexpr const std::array<unsigned int, 2> allowed = { '1', '2' };
+      constexpr const std::array<unsigned int, 2> allowed = { 1, 2 };
       return checkInArray(allowed, (unsigned int)parameter.as_int());
     }
     , "Stop bits for RTU: [1,2]. Default is 1."

@@ -5,6 +5,8 @@
 */
 #include <domabot_common_lib/Exception.h>
 
+#include <numeric>
+
 namespace Domabot {
 
 Exception::Exception(const std::string& msg) : runtime_error(msg) {}
@@ -32,9 +34,14 @@ void Exception::checkSelf() {
 
 std::string Exception::toString() const {
   std::string msg = what();
-  for (const auto& e : m_childs) {
-    msg += std::string("\n  ") + e;
-  }
+  msg += std::accumulate(
+      m_childs.begin()
+    , m_childs.end()
+    , std::string{}
+    , [](std::string acc, const std::string& child) {
+        return std::move(acc) + "\n  " + child;
+      }
+  );
   return msg;
 }
 

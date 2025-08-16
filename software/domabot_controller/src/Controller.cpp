@@ -16,7 +16,7 @@ Controller::Controller() try : Node("domabot_controller") {
       get_logger().get_child("Modbus")
     , ControllerParams::getPath    (*this).c_str()
     , ControllerParams::getBaudRate(*this)
-    , ControllerParams::getParity  (*this)
+    , ControllerParams::getParity  (*this).at(0)
     , ControllerParams::getDataBits(*this)
     , ControllerParams::getStopBits(*this)
     , ControllerParams::getSlaveId (*this)
@@ -161,18 +161,19 @@ MODE Controller::checkMode(const uint16_t value, const bool selfCheck) try {
     throw Exception::createError(
       "Mode wired may activate only by hardware switch!");
   }
+  return mode;
 } defaultCatch
 
 DIR Controller::checkDirection(const uint16_t value) try {
-  checkEnumItem<DIR>(value, "direction");
+  return checkEnumItem<DIR>(value, "direction");
 } defaultCatch
 
 STPR_STS Controller::checkStepperStatus(const uint16_t value) try {
-  checkEnumItem<STPR_STS>(value, "stepper status");
+  return checkEnumItem<STPR_STS>(value, "stepper status");
 } defaultCatch
 
 CMD Controller::checkCommand(const uint16_t value) try {
-  checkEnumItem<CMD>(value, "command");
+  return checkEnumItem<CMD>(value, "command");
 } defaultCatch
 
 void Controller::setSettingsToRegisters(

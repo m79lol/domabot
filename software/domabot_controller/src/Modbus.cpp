@@ -57,27 +57,24 @@ void Modbus::runModbusOperation(
   unsigned int attempts = 2;
   while(attempts--) {
     try {
-      bool isNewConnect = false;
       if (!m_isConnected) {
+        RCLCPP_INFO_STREAM(m_logger, "Trying to re-establish link...");
         if (modbus_connect(m_cntx) < 0) {
           throw Exception::createError(
             "Could not establish link. Modbus error: ", modbus_strerror(errno));
         }
         m_isConnected = true;
-        isNewConnect = true;
-        RCLCPP_DEBUG_STREAM(m_logger, "Reconnected.");
+        RCLCPP_INFO_STREAM(m_logger, "Reconnected.");
       }
       if (!operation(m_cntx)) {
-        if (m_isConnected && !isNewConnect) {
-          RCLCPP_DEBUG_STREAM(m_logger,
-            "Modbus operation failed. Modbus error: " << modbus_strerror(errno));
-          RCLCPP_DEBUG_STREAM(m_logger, "Trying to re-establish link...");
+        const std::string error = modbus_strerror(errno);
+        if (m_isConnected) {
           modbus_close(m_cntx);
           m_isConnected = false;
         }
         throw Exception::createError(
-            "Modbus operation failed after link was re-established. Modbus error: "
-          , modbus_strerror(errno));
+            "Modbus operation failed. Modbus error: "
+          , error);
       }
       break;
     } catch (const std::exception& e) {
