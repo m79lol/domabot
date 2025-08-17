@@ -44,7 +44,7 @@ Controller::Controller() try : Node("domabot_controller") {
 
   m_timerCallbackGroup =
     create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-  const rclcpp::CallbackGroup::SharedPtr serviceCallbackGroup =
+  m_serviceCallbackGroup =
     create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
   m_srvBrake = create_service<DI::srv::Brake>(
@@ -53,7 +53,7 @@ Controller::Controller() try : Node("domabot_controller") {
         &Controller::brakeSrvCallback, this,
         std::placeholders::_1, std::placeholders::_2)
     , rcl_service_get_default_options().qos
-    , serviceCallbackGroup
+    , m_serviceCallbackGroup
   );
   m_srvGetData = create_service<DI::srv::GetData>(
       "get_data"
@@ -61,7 +61,7 @@ Controller::Controller() try : Node("domabot_controller") {
         &Controller::getDataSrvCallback, this,
         std::placeholders::_1, std::placeholders::_2)
     , rcl_service_get_default_options().qos
-    , serviceCallbackGroup
+    , m_serviceCallbackGroup
   );
   m_srvMove = create_service<DI::srv::Move>(
       "move"
@@ -69,7 +69,7 @@ Controller::Controller() try : Node("domabot_controller") {
         &Controller::moveSrvCallback, this,
         std::placeholders::_1, std::placeholders::_2)
     , rcl_service_get_default_options().qos
-    , serviceCallbackGroup
+    , m_serviceCallbackGroup
   );
   m_srvSaveSettings = create_service<DI::srv::SaveSettings>(
       "save_settings"
@@ -77,7 +77,7 @@ Controller::Controller() try : Node("domabot_controller") {
         &Controller::saveSettingsSrvCallback, this,
         std::placeholders::_1, std::placeholders::_2)
     , rcl_service_get_default_options().qos
-    , serviceCallbackGroup
+    , m_serviceCallbackGroup
   );
   m_srvSetDirection = create_service<DI::srv::SetDirection>(
       "set_direction"
@@ -85,7 +85,7 @@ Controller::Controller() try : Node("domabot_controller") {
         &Controller::setDirectionSrvCallback, this,
         std::placeholders::_1, std::placeholders::_2)
     , rcl_service_get_default_options().qos
-    , serviceCallbackGroup
+    , m_serviceCallbackGroup
   );
   m_srvSetMode = create_service<DI::srv::SetMode>(
       "set_mode"
@@ -93,7 +93,7 @@ Controller::Controller() try : Node("domabot_controller") {
         &Controller::setModeSrvCallback, this,
         std::placeholders::_1, std::placeholders::_2)
     , rcl_service_get_default_options().qos
-    , serviceCallbackGroup
+    , m_serviceCallbackGroup
   );
   m_srvSetSettings = create_service<DI::srv::SetSettings>(
       "set_settings"
@@ -101,7 +101,7 @@ Controller::Controller() try : Node("domabot_controller") {
         &Controller::setSettingsSrvCallback, this,
         std::placeholders::_1, std::placeholders::_2)
     , rcl_service_get_default_options().qos
-    , serviceCallbackGroup
+    , m_serviceCallbackGroup
   );
   m_srvStop = create_service<DI::srv::Stop>(
       "stop"
@@ -109,7 +109,7 @@ Controller::Controller() try : Node("domabot_controller") {
         &Controller::stopSrvCallback, this,
         std::placeholders::_1, std::placeholders::_2)
     , rcl_service_get_default_options().qos
-    , serviceCallbackGroup
+    , m_serviceCallbackGroup
   );
 
   restartStatusTimer(pubRate);
@@ -342,7 +342,6 @@ void Controller::getDataSrvCallback(
     , REG_INP::POS_L
     , REG_INP::STPR_R
     , REG_INP::POS_R
-    , REG_INP::END
   });
   const Modbus::HoldingRegistersValues holdingRegs = m_modbus->readHoldingRegisters({
       REG_HLD::CMD
@@ -403,7 +402,7 @@ void Controller::getDataSrvCallback(
   stepper_right.gear_ratio      .push_back(holdingRegs.at(REG_HLD::GEAR_R));
   stepper_right.wheel_diameter  .push_back(holdingRegs.at(REG_HLD::WHEEL_DIAM_R));
   stepper_right.is_forward      .push_back(holdingRegs.at(REG_HLD::IS_FROWARD_R));
-  settings.stepper_left.push_back(stepper_right);
+  settings.stepper_right.push_back(stepper_right);
 
   res->response_data.is_success = true;
   res->response_data.error_message = "";
@@ -469,10 +468,11 @@ void Controller::setModeSrvCallback(
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "SetMode service called.");
 
-  checkMode(req->mode.mode);
+  const MODE tryMode = checkMode(req->mode.mode);
   m_modbus->writeHoldingRegister(REG_HLD::MODE, req->mode.mode);
 
   processRequestCommand<DI::srv::SetMode>(res, CMD::MODE);
+  m_currentMode = tryMode;
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::SetMode>(res, e);
 }

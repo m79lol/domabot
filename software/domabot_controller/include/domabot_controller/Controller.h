@@ -64,6 +64,9 @@ class Controller : public rclcpp::Node {
     /** @brief Reentrant call back group for timers. */
     rclcpp::CallbackGroup::SharedPtr m_timerCallbackGroup = nullptr;
 
+    /** @brief Multi-thread call back group for services. */
+    rclcpp::CallbackGroup::SharedPtr m_serviceCallbackGroup = nullptr;
+
     uint16_t m_statusRate = 1;  ///< Rate for status publishing.
     std::mutex m_mtxTimer;  ///< Mutex for rate & status timer.
 

@@ -5,7 +5,7 @@
     exec="domabot_controller_node"
     output="screen"
     namespace="domabot"
-    ros_args="--log-level domabot_controller:=DEBUG --disable-rosout-logs"
+    ros_args="--log-level domabot.domabot_controller:=DEBUG --disable-rosout-logs"
     launch-prefix=""
   >
     <param name="baud_rate" value="9600" />
