@@ -15,7 +15,9 @@ Modbus::Modbus(
   , const unsigned int dataBits
   , const unsigned int stopBits
   , const unsigned int slaveId
-) try : m_logger(logger) {
+  , const double connectDelay
+  , const double modbusTimeout
+) try : m_logger(logger), m_connectDelay(connectDelay) {
   RCLCPP_DEBUG_STREAM(m_logger, "Modbus context create...");
   m_cntx = modbus_new_rtu(
     path.c_str(), baudRate, parity, dataBits, stopBits);
@@ -25,10 +27,29 @@ Modbus::Modbus(
   }
   RCLCPP_DEBUG_STREAM(m_logger, "...ok");
 
+  /*constexpr int debugFlag = 1;
+  RCLCPP_DEBUG_STREAM(m_logger, "Modbus set debug " << debugFlag <<  "...");
+  if (modbus_set_debug(m_cntx, debugFlag) < 0) {
+    throw Exception::createError(
+      "Set modbus set debug error: ", modbus_strerror(errno));
+  }
+  RCLCPP_DEBUG_STREAM(m_logger, "...ok");*/
+
   RCLCPP_DEBUG_STREAM(m_logger, "Modbus set slave id " << slaveId <<  "...");
   if (modbus_set_slave(m_cntx, slaveId) < 0) {
     throw Exception::createError(
       "Set modbus slave address error: ", modbus_strerror(errno));
+  }
+  RCLCPP_DEBUG_STREAM(m_logger, "...ok");
+
+  constexpr uint32_t second =  1'000'000L;
+  const uint32_t timeoutMicroSecs = static_cast<uint32_t>(modbusTimeout * 1'000'000.0f);
+  const uint32_t responseSec = timeoutMicroSecs / second;
+  const uint32_t responseUSec = timeoutMicroSecs % second;
+  RCLCPP_DEBUG_STREAM(m_logger, "Modbus set timeout to " << responseSec <<  " sec " <<  responseUSec << " usec.");
+  if (modbus_set_response_timeout(m_cntx, responseSec, responseUSec) < 0) {
+    throw Exception::createError(
+      "Set modbus time out error: ", modbus_strerror(errno));
   }
   RCLCPP_DEBUG_STREAM(m_logger, "...ok");
 } catch (const std::exception& e) {
@@ -63,6 +84,7 @@ void Modbus::runModbusOperation(
           throw Exception::createError(
             "Could not establish link. Modbus error: ", modbus_strerror(errno));
         }
+        rclcpp::Rate(m_connectDelay).sleep();
         m_isConnected = true;
         RCLCPP_INFO_STREAM(m_logger, "Reconnected.");
       }

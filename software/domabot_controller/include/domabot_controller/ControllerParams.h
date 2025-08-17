@@ -121,6 +121,22 @@ class ControllerParams {
      * @return Obtained slave id.
      */
     static unsigned int getSlaveId (rclcpp::Node& node);
+
+    /**
+     * @brief Get delay value in seconds after connection established.
+     * @details Need to establish connection on micro-controller side.
+     * @param[in] node Pointer to current node instance.
+     * @return Obtained delay.
+     */
+    static double getConnectDelay (rclcpp::Node& node);
+
+    /**
+     * @brief Get modbus operation timeout in seconds.
+     * @param[in] node Pointer to current node instance.
+     * @return Obtained timeout.
+     */
+    static double getModbusTimeout (rclcpp::Node& node);
+
 };  // ControllerParams
 
 }  // namespace Domabot

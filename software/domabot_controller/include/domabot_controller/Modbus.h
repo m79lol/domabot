@@ -55,7 +55,13 @@ class Modbus {
     const rclcpp::Logger m_logger;  ///< Internall ROS logger.
     modbus_t* m_cntx = nullptr;   ///<  Modbus context socket descriptor.
     mutable std::mutex m_mtx;  ///< Mutex for modbus context.
-    bool m_isConnected = false;
+    bool m_isConnected = false; ///< Is device connected flag.
+
+    /**
+     * @brief Delay after connect in seconds;
+     * @details Needs to establish connection on micro-controller side.
+    */
+    const double m_connectDelay = 1.0;
 
     /** @brief Disconnect from modbus, close and free context */
     void free() noexcept;
@@ -221,6 +227,8 @@ class Modbus {
       , const unsigned int dataBits
       , const unsigned int stopBits
       , const unsigned int slaveId
+      , const double connectDelay
+      , const double modbusTimeout
     );
 
     Modbus(const Modbus& other)            = delete;

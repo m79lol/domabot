@@ -82,10 +82,10 @@ unsigned int ControllerParams::getStopBits(rclcpp::Node& node) try {
 } defaultCatch
 
 unsigned int ControllerParams::getSlaveId(rclcpp::Node& node) try {
-  return RosParam<char>(
+  return RosParam<int>(
       node
     , "modbus_slave_id"
-    , '1'
+    , 1
     , [](const rclcpp::Parameter& parameter) {
       const int slaveId = parameter.as_int();
       if (slaveId <= 0) {
@@ -95,6 +95,40 @@ unsigned int ControllerParams::getSlaveId(rclcpp::Node& node) try {
       return slaveId;
     }
     , "Modbus slave id address. Default is 1."
+  ).getValue();
+} defaultCatch
+
+double ControllerParams::getConnectDelay(rclcpp::Node& node) try {
+  return RosParam<double>(
+      node
+    , "connect_delay"
+    , 1.0
+    , [](const rclcpp::Parameter& parameter) {
+      const double delay = parameter.as_double();
+      if (delay <= 0) {
+        throw Exception::createError(
+          "Connect delay is ", delay, " second. Delay must be above zero.");
+      }
+      return delay;
+    }
+    , "Connect delay in seconds. Default is 1.0 sec."
+  ).getValue();
+} defaultCatch
+
+double ControllerParams::getModbusTimeout(rclcpp::Node& node) try {
+  return RosParam<double>(
+      node
+    , "modbus_timeout"
+    , 1.0
+    , [](const rclcpp::Parameter& parameter) {
+      const double delay = parameter.as_double();
+      if (delay <= 0) {
+        throw Exception::createError(
+          "Modbus timeout is ", delay, " seconds. Timeout must be above zero.");
+      }
+      return delay;
+    }
+    , "Modbus timeout in seconds. Default is 1.0 sec."
   ).getValue();
 } defaultCatch
 

@@ -14,12 +14,14 @@ const char Controller::m_statusTopicName[] = "status";
 Controller::Controller() try : Node("domabot_controller") {
   m_modbus = std::make_shared<Modbus>(
       get_logger().get_child("Modbus")
-    , ControllerParams::getPath    (*this).c_str()
-    , ControllerParams::getBaudRate(*this)
-    , ControllerParams::getParity  (*this).at(0)
-    , ControllerParams::getDataBits(*this)
-    , ControllerParams::getStopBits(*this)
-    , ControllerParams::getSlaveId (*this)
+    , ControllerParams::getPath         (*this).c_str()
+    , ControllerParams::getBaudRate     (*this)
+    , ControllerParams::getParity       (*this).at(0)
+    , ControllerParams::getDataBits     (*this)
+    , ControllerParams::getStopBits     (*this)
+    , ControllerParams::getSlaveId      (*this)
+    , ControllerParams::getConnectDelay (*this)
+    , ControllerParams::getModbusTimeout(*this)
   );
 
   const auto protocolVersion = m_modbus->readInputRegister(REG_INP::VER);
@@ -293,23 +295,24 @@ void Controller::restartStatusTimer(const uint16_t rate) try {
   const size_t cntScrbrs = m_cntStatusSubscriber.load(std::memory_order_acquire);
   {
     const std::lock_guard<std::mutex> lock(m_mtxTimer);
-    if (!m_statusTimer->is_canceled() && rate == m_statusRate && 0 < cntScrbrs) {
-      return;
-    }
     if (nullptr != m_statusTimer) {
+      if (!m_statusTimer->is_canceled() && rate == m_statusRate && 0 < cntScrbrs) {
+        return;
+      }
       m_statusTimer->cancel();  // stop old timer
     }
+
+    m_statusRate = rate;
     if (0 == cntScrbrs) {
       return;
     }
 
-    const std::chrono::milliseconds pubPeriod(1000 / rate);
+    const std::chrono::milliseconds pubPeriod(1000 / m_statusRate);
     m_statusTimer = create_wall_timer(
         pubPeriod
       , std::bind(&Controller::statusTimerCallback, this)
       , m_timerCallbackGroup
     );
-    m_statusRate = rate;
   }
 
   RCLCPP_INFO_STREAM(
