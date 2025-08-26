@@ -350,6 +350,7 @@ void processCommand() {
 
       processDirection();
       updateStatus(status);
+      return;
     }
     default: {}  // warning supress
   }
@@ -492,6 +493,7 @@ void updateCurrentStatus() {
   future = millis() + 1000 / controllerData.updateRateHz;
 
   // update current status
+  isSteppersMoving = 0;
   for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
     const uint8_t baseIndex = (uint8_t)(0 == i ? REG_INP::STPR_L : REG_INP::STPR_R);
     const uint8_t stepperStatus =  steppers[i].getStatus();

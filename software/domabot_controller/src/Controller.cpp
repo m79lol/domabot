@@ -141,8 +141,8 @@ Controller::Controller() try : Node("domabot_controller") {
 } defaultCatch
 
 STS Controller::checkStatus(const uint16_t value, const bool selfCheck) const try {
-  const STS status = checkEnumItem<STS>(value, "status", selfCheck);
-  if (!selfCheck) {
+  const STS status = checkEnumItem<STS>(value, "status", false);
+  if (selfCheck) {
     return status;
   }
 
@@ -158,7 +158,7 @@ STS Controller::checkStatus(const uint16_t value, const bool selfCheck) const tr
 } defaultCatch
 
 MODE Controller::checkMode(const uint16_t value, const bool selfCheck) try {
-  const MODE mode = checkEnumItem<MODE>(value, "mode", selfCheck);
+  const MODE mode = checkEnumItem<MODE>(value, "mode", false);
   if (MODE::WRD == mode && !selfCheck) {
     throw Exception::createError(
       "Mode wired may activate only by hardware switch!");
@@ -317,7 +317,7 @@ void Controller::restartStatusTimer(const uint16_t rate) try {
 
   RCLCPP_INFO_STREAM(
       get_logger()
-    , "Restarted status timer with new rare: " << rate << " hz");
+    , "Restarted status timer with new rate: " << rate << " hz");
 } defaultCatch
 
 void Controller::brakeSrvCallback(
