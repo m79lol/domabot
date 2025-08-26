@@ -67,7 +67,7 @@ class Controller : public rclcpp::Node {
     /** @brief Multi-thread call back group for services. */
     rclcpp::CallbackGroup::SharedPtr m_serviceCallbackGroup = nullptr;
 
-    uint16_t m_statusRate = 1;  ///< Rate for status publishing.
+    std::atomic_uint16_t m_statusRate{1};  ///< Rate for status publishing.
     std::mutex m_mtxTimer;  ///< Mutex for rate & status timer.
 
     /** @brief Checks subscribers for status and restart status timer. */
@@ -242,14 +242,19 @@ class Controller : public rclcpp::Node {
     } defaultCatch
 
     /**
-     * @brief Change status timer state on specify rate and status subscribers count.
-     * @details Calls on every status subscribers count or rate setting change. If
-     * there is not subscribers, then disable timer. If rate not changed for enabled
-     * timer, do nothing.
+     * @brief Change status timer rate and calls restartStatusTimer.
+     * @details If rate not changed for enabled timer, do nothing.
      * @param[in] rate Rate for status update in status topic.
-     * @throws if rate is zero, because zero division.
+     * @throws If rate is zero, because zero division.
      */
-    void restartStatusTimer(const uint16_t rate);
+    void changeStatusTimerRate(const uint16_t rate);
+
+    /**
+     * @brief Change status timer state on specify status subscribers count.
+     * @details Should calls on every status subscribers count or rate setting
+     * change. If there is not subscribers, then disable timer.
+     */
+    void restartStatusTimer();
 
     /** @brief Performs emergency stops robot's wheels. */
     void brakeSrvCallback(

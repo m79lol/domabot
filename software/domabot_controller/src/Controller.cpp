@@ -112,7 +112,7 @@ Controller::Controller() try : Node("domabot_controller") {
     , m_serviceCallbackGroup
   );
 
-  restartStatusTimer(pubRate);
+  changeStatusTimerRate(pubRate);
 
   m_statsTimer = create_wall_timer(
       std::chrono::milliseconds(1000)
@@ -287,27 +287,33 @@ void Controller::runCommand(const CMD cmd) try {
   checkStatus(status);
 } defaultCatch
 
-void Controller::restartStatusTimer(const uint16_t rate) try {
+void Controller::changeStatusTimerRate(const uint16_t rate) {
   if (0 == rate) {
     throw Exception::createError("Invalid update status rate!");
   }
+  if (rate == m_statusRate.load(std::memory_order_acquire)) {
+    return;
+  }
+  m_statusRate.store(rate, std::memory_order_relaxed);
+  restartStatusTimer();
+}
 
+void Controller::restartStatusTimer() try {
   const size_t cntScrbrs = m_cntStatusSubscriber.load(std::memory_order_acquire);
+  const uint16_t rate = m_statusRate.load(std::memory_order_acquire);
   {
     const std::lock_guard<std::mutex> lock(m_mtxTimer);
     if (nullptr != m_statusTimer) {
-      if (!m_statusTimer->is_canceled() && rate == m_statusRate && 0 < cntScrbrs) {
+      if (!m_statusTimer->is_canceled() && 0 < cntScrbrs) {
         return;
       }
       m_statusTimer->cancel();  // stop old timer
     }
-
-    m_statusRate = rate;
     if (0 == cntScrbrs) {
       return;
     }
 
-    const std::chrono::milliseconds pubPeriod(1000 / m_statusRate);
+    const std::chrono::milliseconds pubPeriod(1000 / rate);
     m_statusTimer = create_wall_timer(
         pubPeriod
       , std::bind(&Controller::statusTimerCallback, this)
@@ -384,7 +390,7 @@ void Controller::getDataSrvCallback(
 
   auto& settings = res->settings;
   res->settings.update_rate.push_back(holdingRegs.at(REG_HLD::RATE));
-  restartStatusTimer(holdingRegs.at(REG_HLD::RATE));
+  changeStatusTimerRate(holdingRegs.at(REG_HLD::RATE));
 
   DI::msg::StepperSettings stepper_left;
   stepper_left.target          .push_back(holdingRegs.at(REG_HLD::TARG_L));
@@ -441,7 +447,7 @@ void Controller::saveSettingsSrvCallback(
 
   if (!settings.empty()) {
     if (!settings.front().update_rate.empty()) {
-      restartStatusTimer(settings.front().update_rate.front());
+      changeStatusTimerRate(settings.front().update_rate.front());
     }
   }
 }  catch (const std::exception& e) {
@@ -489,7 +495,7 @@ void Controller::setSettingsSrvCallback(
   processRequestCommand<DI::srv::SetSettings>(res, CMD::UPDATE);
 
   if (!settings.update_rate.empty()) {
-    restartStatusTimer(settings.update_rate.front());
+    changeStatusTimerRate(settings.update_rate.front());
   }
 }  catch (const std::exception& e) {
   processExceptionCommand<DI::srv::SetSettings>(res, e);
@@ -529,7 +535,7 @@ void Controller::statusTimerCallback() try {
 void Controller::statsTimerCallback() try {
   m_cntStatusSubscriber.store(
     count_subscribers(m_statusTopicName), std::memory_order_relaxed);
-  restartStatusTimer(m_statusRate);
+  restartStatusTimer();
 } catch (const std::exception& e) {
   RCLCPP_ERROR_STREAM(get_logger(), e.what());
 }

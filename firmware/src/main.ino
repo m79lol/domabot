@@ -412,8 +412,8 @@ void processCommand() {
 
       if (STS::OK == status && CMD::SAVE == command) {
         memory.updateNow();
+        loadFromMemory();
       }
-      loadFromMemory();
       initSteppers();
 
       completeCommand(status);
