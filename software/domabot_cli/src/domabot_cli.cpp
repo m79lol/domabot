@@ -14,17 +14,23 @@ int main(int argc, char * argv[]) try {
 
   const Domabot::CLI::Ptr node = std::make_shared<Domabot::CLI>();
   rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 2);
-  executor.add_node(node);
+  //executor.add_node(node);
 
   std::thread spinThread([&executor]() {
       executor.spin();
   });
 
-  node->runCLI();
-
-  spinThread.join();
+  int exitCode = 0;
+  try {
+    node->runCLI();
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR_STREAM(node->get_logger(), e.what());
+    exitCode = 1;
+  }
   rclcpp::shutdown();
-  return 0;
+  spinThread.join();
+
+  return exitCode;
 } catch (const std::exception& e) {
   std::cout << e.what() << std::endl;
   return 1;

@@ -62,6 +62,7 @@ void CLI::runCLI() try {
     , MODE   = 5
     , DIR    = 6
     , QUIT   = 7
+    , GET    = 8
   };
 
   bool isTerminate = false;
@@ -72,6 +73,7 @@ void CLI::runCLI() try {
           {"br", "Brake"          , USER_COMMAND::BRAKE }
         , {"st", "Stop"           , USER_COMMAND::STOP  }
         , {"mv", "Move to target" , USER_COMMAND::MOVE  }
+        , {"gt", "Get data"       , USER_COMMAND::GET   }
         , {"up", "Update settings", USER_COMMAND::UPDATE}
         , {"sv", "Save settings"  , USER_COMMAND::SAVE  }
         , {"cm", "Change mode"    , USER_COMMAND::MODE  }
@@ -83,15 +85,13 @@ void CLI::runCLI() try {
       case USER_COMMAND::BRAKE: {
         callService<DI::srv::Brake>(
             m_clientBrake
-          , std::make_shared<DI::srv::Brake::Request>()
-        );
+          , std::make_shared<DI::srv::Brake::Request>());
         break;
       }
       case USER_COMMAND::STOP: {
         callService<DI::srv::Stop>(
             m_clientStop
-          , std::make_shared<DI::srv::Stop::Request>()
-        );
+          , std::make_shared<DI::srv::Stop::Request>());
         break;
       }
       case USER_COMMAND::MOVE: {
@@ -103,6 +103,12 @@ void CLI::runCLI() try {
           UserInteraction::askInput("Enter target position for right stepper: "));
 
         callService<DI::srv::Move>(m_clientMove, req);
+        break;
+      }
+      case USER_COMMAND::GET: {
+        callService<DI::srv::GetData>(
+            m_clientGetData
+          , std::make_shared<DI::srv::GetData::Request>());
         break;
       }
       case USER_COMMAND::UPDATE: {
