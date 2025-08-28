@@ -118,7 +118,7 @@ class Modbus {
      * @param[in] items Set of item addressess.
      * @return Continuos sequences list of addresses modbus items.
      */
-    template <typename Item>
+    template <typename Item>  // cppcheck-suppress syntaxError
     static std::list<std::list<uint8_t>> getItemsSequences(
       const std::set<Item>& items
     ) try {

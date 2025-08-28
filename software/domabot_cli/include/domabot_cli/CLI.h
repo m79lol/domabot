@@ -24,6 +24,8 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <magic_enum/magic_enum.hpp>
+
 #include <memory>
 #include <mutex>
 #include <string>
@@ -59,6 +61,25 @@ class CLI : public rclcpp::Node {
     /** @brief Container to transfer msg between subscriber and main threads */
     DI::msg::Status m_msgLastStatus;
     std::mutex m_mtxLastStatus;
+
+    /**
+     * @brief Get printable name of enum item.
+     * @tparam EnumType Already declared enum.
+     * @param[in] value Enum item value.
+     * @param[in] enumName Printable enum's name.
+     * @return Printable enum's item name.
+     * @throws If item value outside enum bounds.
+     */
+    template<typename EnumType> static std::string_view getEnumItemName(
+        const uint8_t value
+      , const std::string& enumName
+    ) try {
+      const auto item = magic_enum::enum_cast<EnumType>(value);
+      if (!item.has_value()) {
+        throw Exception::createError("Unknown ", enumName, " item: ", value);
+      }
+      return magic_enum::enum_name(item.value());
+    } defaultCatch
 
     /**
      * @brief Obtain setting value from user via console input.
@@ -109,7 +130,8 @@ class CLI : public rclcpp::Node {
      * @return True if something setting change.
      * @throws If current setting container is empty.
      */
-    template <typename Container> bool inputStepperSettings(
+    template <typename Container>  // cppcheck-suppress syntaxError
+    bool inputStepperSettings(
         Container& newContainer
       , const Container& oldContainer
     ) try {

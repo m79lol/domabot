@@ -1,8 +1,26 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.10)
 project(domabot_controller)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+set(CMAKE_CXX_STANDARD 17)
+
+option(ENABLE_CPPCHECK "Enable cppcheck tool for static code analysis." OFF)
+
+if(ENABLE_CPPCHECK)
+  set(CMAKE_CXX_CPPCHECK
+    cppcheck
+    --enable=warning,style,performance,portability,information,unusedFunction
+    --language=c++
+    --std=c++17
+    --inline-suppr
+    --inconclusive
+    --max-ctu-depth=10
+    --suppressions-list=${CMAKE_CURRENT_SOURCE_DIR}/cppcheck_suppress_list.txt
+  )
+  message(STATUS "cppcheck enabled.")
 endif()
 
 find_package(ament_cmake REQUIRED)

@@ -106,9 +106,44 @@ void CLI::runCLI() try {
         break;
       }
       case USER_COMMAND::GET: {
-        callService<DI::srv::GetData>(
+        const auto res = callService<DI::srv::GetData>(
             m_clientGetData
           , std::make_shared<DI::srv::GetData::Request>());
+
+        const auto& status = res->status;
+        const auto& settings = res->settings;
+        const auto& stepperLeft = settings.stepper_left.front();
+        const auto& stepperRight = settings.stepper_right.front();
+
+        RCLCPP_INFO_STREAM(get_logger(),
+             "Command: " << getEnumItemName<CMD>(res->command.command, "command") << std::endl
+          << "Mode: " << getEnumItemName<MODE>(res->mode.mode, "mode") << std::endl
+          << "Direction: " << getEnumItemName<DIR>(res->direction.direction, "direction") << std::endl
+          << "Status:" << std::endl
+          << " - Controller status: " << getEnumItemName<STS>(status.controller.status, "status") << std::endl
+          << " - Left stepper:" << std::endl
+          << " - - status: " <<  getEnumItemName<STPR_STS>(status.stepper_left.status, "stepper status") << std::endl
+          << " - - position: " <<  status.stepper_left.position << std::endl
+          << " - Right stepper:" << std::endl
+          << " - - status: " <<  getEnumItemName<STPR_STS>(status.stepper_right.status, "stepper status") << std::endl
+          << " - - position: " <<  status.stepper_right.position << std::endl
+          << "Settings:" << std::endl
+          << " - Update rate: " <<  settings.update_rate.front() << std::endl
+          << " - Left stepper:" << std::endl
+          << " - - target: "  <<  stepperLeft.target.front() << std::endl
+          << " - - max speed: "  <<  stepperLeft.max_speed.front() << std::endl
+          << " - - max acceleration: "  <<  stepperLeft.max_acceleration.front() << std::endl
+          << " - - gear ratio: "  <<  stepperLeft.gear_ratio.front() << std::endl
+          << " - - wheel diameter: "  <<  stepperLeft.wheel_diameter.front() << std::endl
+          << " - - is forward: "  <<  stepperLeft.is_forward.front() << std::endl
+          << " - Right stepper:" << std::endl
+          << " - - target: "  <<  stepperRight.target.front() << std::endl
+          << " - - max speed: "  <<  stepperRight.max_speed.front() << std::endl
+          << " - - max acceleration: "  <<  stepperRight.max_acceleration.front() << std::endl
+          << " - - gear ratio: "  <<  stepperRight.gear_ratio.front() << std::endl
+          << " - - wheel diameter: "  <<  stepperRight.wheel_diameter.front() << std::endl
+          << " - - is forward: "  <<  stepperRight.is_forward.front() << std::endl
+        );
         break;
       }
       case USER_COMMAND::UPDATE: {
