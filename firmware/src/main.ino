@@ -332,6 +332,10 @@ void processCommand() {
       return;
     }
     case CMD::DIR: {
+      if (MODE::DRCT != mode) {
+        completeCommand(STS::ERR_MODE);
+        return;
+      }
       direction = (DIR) holdingRegisterRead(REG_HLD::DIR);
       STS status = STS::OK;
       switch (direction) {
@@ -364,6 +368,11 @@ void processCommand() {
   // stopped now, process other commands
   switch (command) {
     case CMD::MOVE: {
+      if (MODE::TRG != mode) {
+        completeCommand(STS::ERR_MODE);
+        break;
+      }
+
       for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
         const REG_HLD reg = 0 == i ? REG_HLD::TARG_L : REG_HLD::TARG_R;
         const int16_t target = holdingRegisterRead(reg);
