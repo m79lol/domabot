@@ -148,11 +148,11 @@ void CLI::runCLI() try {
         , {
             { "b" , "Brake"             , USER_COMMAND::BRAKE   }
           , { "st", "Stop"              , USER_COMMAND::STOP    }
-          , { "m" , "Move to target"    , USER_COMMAND::MOVE    }
+          , { "mv", "Move to target"    , USER_COMMAND::MOVE    }
           , { "g" , "Get data"          , USER_COMMAND::GET     }
           , { "u" , "Update settings"   , USER_COMMAND::UPDATE  }
           , { "sv", "Save settings"     , USER_COMMAND::SAVE    }
-          , { "m" , "Change mode"       , USER_COMMAND::MODE    }
+          , { "md", "Change mode"       , USER_COMMAND::MODE    }
           , { "d" , "Change dir"        , USER_COMMAND::DIR     }
           , { "q" , "Quit"              , USER_COMMAND::QUIT    }
           , { "k" , "Direct mode by key", USER_COMMAND::DIR_KEY }
