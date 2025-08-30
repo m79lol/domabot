@@ -47,7 +47,7 @@ std::string ControllerParams::getParity(rclcpp::Node& node) try {
   return RosParam<std::string>(
       node
     , "parity"
-    , std::string("N")
+    , std::string("None")
     , [](const rclcpp::Parameter& parameter) {
       const std::array<std::string, 3> allowed = { "None", "Even", "Odd" };
       return checkInArray(allowed, checkIsEmpty(parameter));
@@ -69,10 +69,10 @@ std::string ControllerParams::getPath(rclcpp::Node& node) try {
 } defaultCatch
 
 unsigned int ControllerParams::getStopBits(rclcpp::Node& node) try {
-  return RosParam<char>(
+  return RosParam<int>(
       node
     , "stop_bits"
-    , '1'
+    , 1
     , [](const rclcpp::Parameter& parameter) {
       constexpr const std::array<unsigned int, 2> allowed = { 1, 2 };
       return checkInArray(allowed, (unsigned int)parameter.as_int());

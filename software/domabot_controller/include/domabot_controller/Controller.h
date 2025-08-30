@@ -74,10 +74,10 @@ class Controller : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr m_statsTimer = nullptr;
 
     /** @brief Count subscribers on Status topic. */
-    std::atomic_size_t m_cntStatusSubscriber{0};
+    std::atomic_bool m_isStatusSubscriber{0};
 
-    /** @brief Command executing flag for blocking another not emergency commands. */
-    bool m_isCommandExecuting = false;
+    /** @brief Moving flag for blocking another not emergency commands. */
+    std::atomic_bool m_isMoving{0};
     MODE m_currentMode = MODE::TRG;  ///< Current robot behavior.
 
     /**
@@ -155,6 +155,22 @@ class Controller : public rclcpp::Node {
      * @throws If command outside CMD enum values.
      */
     static CMD checkCommand(const uint16_t value);
+
+    /**
+     * @brief Validates current mode to mode of requested command.
+     * @param[in] cmd Requested command.
+     * @param[in] mode Requested mode for requested command.
+     * @throws If requested mode not equal current mode.
+     */
+    void checkAllowedMode(const CMD cmd, const MODE mode) {
+      if (mode != m_currentMode) {
+        throw Exception::createError(
+            "Can't execute command ", magic_enum::enum_name(cmd)
+          , " in mode ", magic_enum::enum_name(m_currentMode)
+          , "! This command execute only in "
+          , magic_enum::enum_name(mode), " mode.");
+      }
+    }
 
     /**
      * @brief Write controller settings to Modbus Holding registers.
@@ -242,19 +258,13 @@ class Controller : public rclcpp::Node {
     } defaultCatch
 
     /**
-     * @brief Change status timer rate and calls restartStatusTimer.
-     * @details If rate not changed for enabled timer, do nothing.
-     * @param[in] rate Rate for status update in status topic.
+     * @brief Restart status timer by new rate.
+     * @details Should calls on every rate setting change. If rate not changed
+     * do nothing.
+     * @param[in] rate New rate value for status update in status topic.
      * @throws If rate is zero, because zero division.
      */
-    void changeStatusTimerRate(const uint16_t rate);
-
-    /**
-     * @brief Change status timer state on specify status subscribers count.
-     * @details Should calls on every status subscribers count or rate setting
-     * change. If there is not subscribers, then disable timer.
-     */
-    void restartStatusTimer();
+    void restartStatusTimer(const uint16_t rate);
 
     /** @brief Performs emergency stops robot's wheels. */
     void brakeSrvCallback(

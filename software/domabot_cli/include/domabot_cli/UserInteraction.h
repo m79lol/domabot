@@ -83,8 +83,8 @@ class UserInteraction {
                     << options[i].m_shortcut << " ] - " << options[i].m_description;
         }
         std::cout << "\n  ans: ";
-        std::string input{};
         std::cin.clear();
+        std::string input;
         std::cin >> input;
         for (size_t choice = 0; choice < options.size(); ++choice) {
           if (input == options[choice].m_shortcut) {

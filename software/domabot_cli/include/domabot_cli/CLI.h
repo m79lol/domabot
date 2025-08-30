@@ -93,7 +93,8 @@ class CLI : public rclcpp::Node {
      * @return True if something setting change.
      * @throws If current setting container is empty.
      */
-    template <typename Container> bool inputSettingValue(
+    template <typename Container>  // cppcheck-suppress syntaxError
+    bool inputSettingValue(
         const std::string& settingName
       , Container& destValue
       , const Container& currentValue
@@ -103,15 +104,15 @@ class CLI : public rclcpp::Node {
           "Empty current value for setting: ", settingName);
       }
 
-      static const char emptyChar = 'X';
+      static const std::string emptyChar = "X";
       std::stringstream ss;
       ss << "Input " << settingName << " value. ";
-      ss << "Current :" << currentValue.front() << ". ";
+      ss << "Current: " << static_cast<int>(currentValue.front()) << ". ";
       ss << "Input " << emptyChar << " to leave current value." << std::endl;
       ss << "Value: ";
 
       const std::string entered = UserInteraction::askInput(ss.str());
-      if (std::string(&emptyChar) == entered) {
+      if (emptyChar == entered) {
         return false;
       }
 
@@ -177,10 +178,10 @@ class CLI : public rclcpp::Node {
 
     /**
      * @brief Obtain all controller's settings values from user's input.
-     * @param[in] newSettings Settings destination instance.
+     * @param[out] newSettings Settings destination instance.
      * @return True if something setting change.
      */
-    bool inputSettings(DI::msg::ControllerSettings newSettings);
+    bool inputSettings(DI::msg::ControllerSettings& newSettings);
 
     /**
      * @brief Call controller's service wrapper method.

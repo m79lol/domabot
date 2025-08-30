@@ -112,7 +112,7 @@ Controller::Controller() try : Node("domabot_controller") {
     , m_serviceCallbackGroup
   );
 
-  changeStatusTimerRate(pubRate);
+  restartStatusTimer(pubRate);
 
   m_statsTimer = create_wall_timer(
       std::chrono::milliseconds(1000)
@@ -226,25 +226,16 @@ void Controller::runCommand(const CMD cmd) try {
     case CMD::MOVE: { [[fallthrough]]; }
     case CMD::SAVE: { [[fallthrough]]; }
     case CMD::UPDATE: {
-      if (m_isCommandExecuting) {
+      if (m_isMoving.load(std::memory_order_acquire)) {
         throw Exception::createError(
             "Can't execute command ", commandName
-          , " during executing another command!");
-      }
-      break;
-    }
-    case CMD::DIR: {
-      if (MODE::DRCT != m_currentMode) {
-        throw Exception::createError(
-            "Can't execute command ", commandName
-          , " in mode ", magic_enum::enum_name(m_currentMode)
-          , "! This command execute only in "
-          , magic_enum::enum_name(MODE::DRCT), " mode.");
+          , " during moving!");
       }
       break;
     }
 
     // can execute at any time
+    case CMD::DIR: { break; }
     case CMD::BRAKE: { break; }
     case CMD::STOP:  { break; }
   }
@@ -268,7 +259,6 @@ void Controller::runCommand(const CMD cmd) try {
       }
       isAccepted = !m_modbus->readCoil(COIL::NEW_CMD);
       RCLCPP_DEBUG_STREAM(get_logger(), "Waiting accept... " << ++counter);
-      m_isCommandExecuting = true;
       if (!isAccepted) {
         continue;
       }
@@ -287,30 +277,20 @@ void Controller::runCommand(const CMD cmd) try {
   checkStatus(status);
 } defaultCatch
 
-void Controller::changeStatusTimerRate(const uint16_t rate) {
+void Controller::restartStatusTimer(const uint16_t rate) try {
   if (0 == rate) {
-    throw Exception::createError("Invalid update status rate!");
+    throw Exception::createError(
+      "Invalid update status rate! Rate must be above zero!");
   }
-  if (rate == m_statusRate.load(std::memory_order_acquire)) {
-    return;
-  }
-  m_statusRate.store(rate, std::memory_order_relaxed);
-  restartStatusTimer();
-}
 
-void Controller::restartStatusTimer() try {
-  const size_t cntScrbrs = m_cntStatusSubscriber.load(std::memory_order_acquire);
-  const uint16_t rate = m_statusRate.load(std::memory_order_acquire);
   {
     const std::lock_guard<std::mutex> lock(m_mtxTimer);
-    if (nullptr != m_statusTimer) {
-      if (!m_statusTimer->is_canceled() && 0 < cntScrbrs) {
-        return;
-      }
-      m_statusTimer->cancel();  // stop old timer
-    }
-    if (0 == cntScrbrs) {
+    static uint16_t oldRate = 0;
+    if (rate == oldRate) {
       return;
+    }
+    if (nullptr != m_statusTimer && !m_statusTimer->is_canceled()) {
+      m_statusTimer->cancel();  // stop old timer
     }
 
     const std::chrono::milliseconds pubPeriod(1000 / rate);
@@ -319,6 +299,7 @@ void Controller::restartStatusTimer() try {
       , std::bind(&Controller::statusTimerCallback, this)
       , m_timerCallbackGroup
     );
+    oldRate = rate;
   }
 
   RCLCPP_INFO_STREAM(
@@ -390,7 +371,7 @@ void Controller::getDataSrvCallback(
 
   auto& settings = res->settings;
   res->settings.update_rate.push_back(holdingRegs.at(REG_HLD::RATE));
-  changeStatusTimerRate(holdingRegs.at(REG_HLD::RATE));
+  restartStatusTimer(holdingRegs.at(REG_HLD::RATE));
 
   DI::msg::StepperSettings stepper_left;
   stepper_left.target          .push_back(holdingRegs.at(REG_HLD::TARG_L));
@@ -422,6 +403,8 @@ void Controller::moveSrvCallback(
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "Move service called.");
 
+  checkAllowedMode(CMD::MOVE, MODE::TRG);
+
   m_modbus->writeHoldingRegisters({
       { REG_HLD::TARG_L, (uint16_t) req->target_position_left }
     , { REG_HLD::TARG_R, (uint16_t) req->target_position_right }
@@ -447,7 +430,7 @@ void Controller::saveSettingsSrvCallback(
 
   if (!settings.empty()) {
     if (!settings.front().update_rate.empty()) {
-      changeStatusTimerRate(settings.front().update_rate.front());
+      restartStatusTimer(settings.front().update_rate.front());
     }
   }
 }  catch (const std::exception& e) {
@@ -461,6 +444,8 @@ void Controller::setDirectionSrvCallback(
   RCLCPP_DEBUG_STREAM(get_logger(), "SetDirection service called.");
 
   checkDirection(req->direction.direction);
+  checkAllowedMode(CMD::DIR, MODE::DRCT);
+
   m_modbus->writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
 
   processRequestCommand<DI::srv::SetDirection>(res, CMD::DIR);
@@ -495,7 +480,7 @@ void Controller::setSettingsSrvCallback(
   processRequestCommand<DI::srv::SetSettings>(res, CMD::UPDATE);
 
   if (!settings.update_rate.empty()) {
-    changeStatusTimerRate(settings.update_rate.front());
+    restartStatusTimer(settings.update_rate.front());
   }
 }  catch (const std::exception& e) {
   processExceptionCommand<DI::srv::SetSettings>(res, e);
@@ -520,6 +505,19 @@ void Controller::statusTimerCallback() try {
     , REG_INP::POS_R
   });
 
+  const STPR_STS leftStatus = checkStepperStatus(inputRegs.at(REG_INP::STPR_L));
+  const STPR_STS rightStatus = checkStepperStatus(inputRegs.at(REG_INP::STPR_R));
+
+  m_isMoving.store(
+      leftStatus != STPR_STS::STOPPED
+      || rightStatus != STPR_STS::STOPPED
+    , std::memory_order_relaxed);
+
+  const bool isScrbrs = m_isStatusSubscriber.load(std::memory_order_acquire);
+  if (0 == isScrbrs) {
+    return;
+  }
+
   auto msg = DI::msg::Status();
   msg.controller.status      = inputRegs.at(REG_INP::STS);
   msg.stepper_left.status    = inputRegs.at(REG_INP::STPR_L);
@@ -533,9 +531,12 @@ void Controller::statusTimerCallback() try {
 }
 
 void Controller::statsTimerCallback() try {
-  m_cntStatusSubscriber.store(
-    count_subscribers(m_statusTopicName), std::memory_order_relaxed);
-  restartStatusTimer();
+  const bool oldCnt = m_isStatusSubscriber.load(std::memory_order_acquire);
+  const bool newCnt = 0 != count_subscribers(m_statusTopicName);
+  if (oldCnt == newCnt) {
+    return;
+  }
+  m_isStatusSubscriber.store(newCnt, std::memory_order_relaxed);
 } catch (const std::exception& e) {
   RCLCPP_ERROR_STREAM(get_logger(), e.what());
 }

@@ -1,0 +1,10 @@
+/domabot/domabot_controller:
+  ros__parameters:
+    baud_rate: 9600
+    connect_delay: 1.0
+    data_bits: 8
+    modbus_slave_id: 1
+    modbus_timeout: 1.0
+    parity: None
+    path: /dev/ttyACM0
+    stop_bits: 1

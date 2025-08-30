@@ -55,7 +55,7 @@ class Modbus {
     const rclcpp::Logger m_logger;  ///< Internall ROS logger.
     modbus_t* m_cntx = nullptr;   ///<  Modbus context socket descriptor.
     mutable std::mutex m_mtx;  ///< Mutex for modbus context.
-    bool m_isConnected = false; ///< Is device connected flag.
+    bool m_isConnected = false;  ///< Is device connected flag.
 
     /**
      * @brief Delay after connect in seconds;

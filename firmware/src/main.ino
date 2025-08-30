@@ -59,7 +59,7 @@ struct StepperData {
 /** @brief Controller data stored in EEPROM memory. */
 struct ControllerData {
   StepperData stepperData[MOTOR_CNT];  ///< left is 0, right is 1
-  uint16_t updateRateHz = 50;  ///< for Modbus Input Registers
+  uint16_t updateRateHz = 1;  ///< for Modbus Input Registers
 };
 
 uint8_t isSteppersMoving = 0;

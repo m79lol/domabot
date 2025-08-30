@@ -43,10 +43,14 @@ Modbus::Modbus(
   RCLCPP_DEBUG_STREAM(m_logger, "...ok");
 
   constexpr uint32_t second =  1'000'000L;
-  const uint32_t timeoutMicroSecs = static_cast<uint32_t>(modbusTimeout * 1'000'000.0f);
+  const uint32_t timeoutMicroSecs = static_cast<uint32_t>(
+    modbusTimeout * 1'000'000.0f);
   const uint32_t responseSec = timeoutMicroSecs / second;
   const uint32_t responseUSec = timeoutMicroSecs % second;
-  RCLCPP_DEBUG_STREAM(m_logger, "Modbus set timeout to " << responseSec <<  " sec " <<  responseUSec << " usec.");
+  RCLCPP_DEBUG_STREAM(
+      m_logger
+    , "Modbus set timeout to " << responseSec <<  " sec "
+      <<  responseUSec << " usec.");
   if (modbus_set_response_timeout(m_cntx, responseSec, responseUSec) < 0) {
     throw Exception::createError(
       "Set modbus time out error: ", modbus_strerror(errno));

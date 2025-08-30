@@ -8,13 +8,6 @@
     ros_args="--log-level domabot.domabot_controller:=DEBUG --log-level domabot.domabot_controller.Modbus:=INFO --disable-rosout-logs"
     launch-prefix=""
   >
-    <param name="baud_rate" value="9600" />
-    <param name="connect_delay" value="1.0" />
-    <param name="data_bits" value="8" />
-    <param name="modbus_slave_id" value="1" />
-    <param name="modbus_timeout" value="1.0" />
-    <param name="parity" value="None" />
-    <param name="path" value="/dev/ttyACM0" />
-    <param name="stop_bits" value="1" />
+    <param from="$(find-pkg-share domabot_controller)/config/config.yaml" />
   </node>
 </launch>

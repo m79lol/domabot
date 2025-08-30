@@ -136,7 +136,6 @@ class ControllerParams {
      * @return Obtained timeout.
      */
     static double getModbusTimeout (rclcpp::Node& node);
-
 };  // ControllerParams
 
 }  // namespace Domabot

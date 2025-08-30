@@ -14,10 +14,9 @@ int main(int argc, char * argv[]) try {
 
   const Domabot::CLI::Ptr node = std::make_shared<Domabot::CLI>();
   rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 2);
-  //executor.add_node(node);
 
   std::thread spinThread([&executor]() {
-      executor.spin();
+    executor.spin();
   });
 
   int exitCode = 0;

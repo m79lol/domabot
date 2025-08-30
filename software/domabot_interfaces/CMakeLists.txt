@@ -5,6 +5,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(CMAKE_CXX_STANDARD 17)
+
+option(ENABLE_CPPCHECK "Enable cppcheck tool for static code analysis." OFF)
+
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
