@@ -5,7 +5,8 @@
 */
 #include <domabot_cli/CLI.h>
 
-#include <domabot_firmware/firmware_data_types.h>
+#include <cstring>
+#include <cerrno>
 
 namespace Domabot {
 
@@ -52,17 +53,91 @@ void CLI::statusCallback(const DI::msg::Status& msg) try {
   RCLCPP_ERROR_STREAM(get_logger(), e.what());
 }
 
+void CLI::changeDirection(const DIR dir) try {
+  const auto req = std::make_shared<DI::srv::SetDirection::Request>();
+  req->direction.direction = static_cast<uint8_t>(dir);
+  callService<DI::srv::SetDirection>(m_clientSetDirection, req);
+} defaultCatch
+
+void CLI::restoreConsoleMode() try {
+  tcsetattr(m_kfd, TCSANOW, &m_cooked);
+} defaultCatch
+
+void CLI::runDirectMode() try {
+  tcgetattr(m_kfd, &m_cooked);
+  memcpy(&m_raw, &m_cooked, sizeof(struct termios));
+  m_raw.c_lflag &= ~(ICANON | ECHO);
+  // Setting a new line, then end of file
+  m_raw.c_cc[VEOL] = 1;
+  m_raw.c_cc[VEOF] = 2;
+  tcsetattr(m_kfd, TCSANOW, &m_raw);
+
+  RCLCPP_INFO_STREAM(
+      get_logger()
+    , "Reading from keyboard\n"
+      << "---------------------------"
+      << "Use arrow keys to move the robot.\n"
+      << "SPACE key is break. Q key is exit.");
+
+  char key = 0;
+  char lastKey = 0;
+  bool isQuit = false;
+
+  while (rclcpp::ok()) {
+    if (read(m_kfd, &key, 1) < 0) {
+      throw Exception::createError("Error read key:", strerror(errno));
+    }
+
+    RCLCPP_DEBUG(get_logger(), "key: 0x%02X\n", key);
+    if (key == lastKey) {
+      continue;
+    }
+
+    constexpr char keyR     = 0x43;
+    constexpr char keyL     = 0x44;
+    constexpr char keyU     = 0x41;
+    constexpr char keyD     = 0x42;
+    constexpr char keyQ     = 0x71;
+    constexpr char keySpace = 0x20;
+
+    DIR dir = DIR::STOP;
+    bool isSkip = false;
+    switch(key) {
+      case keyL:     { dir = DIR::LEFT;     break; }
+      case keyU:     { dir = DIR::FORWARD;  break; }
+      case keyD:     { dir = DIR::BACKWARD; break; }
+      case keyR:     { dir = DIR::RIGHT;    break; }
+      case keySpace: { dir = DIR::STOP;     break; }
+      case keyQ:     { isQuit = true;       break; }
+      default:       { isSkip = true;       break; }
+    }
+    if (isQuit) { break; }
+    if (isSkip) { continue; }
+
+    RCLCPP_DEBUG_STREAM(get_logger(), magic_enum::enum_name(dir));
+    changeDirection(dir);
+    lastKey = key;
+  }
+  changeDirection(DIR::STOP);
+  restoreConsoleMode();
+} catch(const std::exception& e) {
+  changeDirection(DIR::STOP);
+  restoreConsoleMode();
+  throw Domabot::Exception::BackTrack(e);
+}
+
 void CLI::runCLI() try {
   enum class USER_COMMAND : uint8_t {
-      BRAKE  = 0
-    , STOP   = 1
-    , MOVE   = 2
-    , UPDATE = 3
-    , SAVE   = 4
-    , MODE   = 5
-    , DIR    = 6
-    , QUIT   = 7
-    , GET    = 8
+      BRAKE   = 0
+    , STOP    = 1
+    , MOVE    = 2
+    , UPDATE  = 3
+    , SAVE    = 4
+    , MODE    = 5
+    , DIR     = 6
+    , QUIT    = 7
+    , GET     = 8
+    , DIR_KEY = 9
   };
 
   bool isTerminate = false;
@@ -71,15 +146,16 @@ void CLI::runCLI() try {
       const auto command =  UserInteraction::proposeOptions<USER_COMMAND>(
           "Select command to send controller.\nAvailable commands:"
         , {
-            {"br", "Brake"          , USER_COMMAND::BRAKE }
-          , {"st", "Stop"           , USER_COMMAND::STOP  }
-          , {"mv", "Move to target" , USER_COMMAND::MOVE  }
-          , {"gt", "Get data"       , USER_COMMAND::GET   }
-          , {"up", "Update settings", USER_COMMAND::UPDATE}
-          , {"sv", "Save settings"  , USER_COMMAND::SAVE  }
-          , {"cm", "Change mode"    , USER_COMMAND::MODE  }
-          , {"cd", "Change dir"     , USER_COMMAND::DIR   }
-          , {"q" , "Quit"           , USER_COMMAND::QUIT  }
+            { "b" , "Brake"             , USER_COMMAND::BRAKE   }
+          , { "st", "Stop"              , USER_COMMAND::STOP    }
+          , { "m" , "Move to target"    , USER_COMMAND::MOVE    }
+          , { "g" , "Get data"          , USER_COMMAND::GET     }
+          , { "u" , "Update settings"   , USER_COMMAND::UPDATE  }
+          , { "sv", "Save settings"     , USER_COMMAND::SAVE    }
+          , { "m" , "Change mode"       , USER_COMMAND::MODE    }
+          , { "d" , "Change dir"        , USER_COMMAND::DIR     }
+          , { "q" , "Quit"              , USER_COMMAND::QUIT    }
+          , { "k" , "Direct mode by key", USER_COMMAND::DIR_KEY }
         });
 
       switch (command) {
@@ -225,32 +301,21 @@ void CLI::runCLI() try {
               break;
             }
 
-            const auto req = std::make_shared<DI::srv::SetDirection::Request>();
+            DIR dir = DIR::STOP;
             switch (direction) {
               default: { [[fallthrough]]; }
-              case USER_DIRECTION::STOP: {
-                req->direction.direction = DI::msg::Direction::DIR_STOP;
-                break;
-              }
-              case USER_DIRECTION::FORWARD: {
-                req->direction.direction = DI::msg::Direction::DIR_FORWARD;
-                break;
-              }
-              case USER_DIRECTION::RIGHT: {
-                req->direction.direction = DI::msg::Direction::DIR_RIGHT;
-                break;
-              }
-              case USER_DIRECTION::BACKWARD: {
-                req->direction.direction = DI::msg::Direction::DIR_BACKWARD;
-                break;
-              }
-              case USER_DIRECTION::LEFT: {
-                req->direction.direction = DI::msg::Direction::DIR_LEFT;
-                break;
-              }
+              case USER_DIRECTION::STOP:     { dir = DIR::STOP;     break; }
+              case USER_DIRECTION::FORWARD:  { dir = DIR::FORWARD;  break; }
+              case USER_DIRECTION::RIGHT:    { dir = DIR::RIGHT;    break; }
+              case USER_DIRECTION::BACKWARD: { dir = DIR::BACKWARD; break; }
+              case USER_DIRECTION::LEFT:     { dir = DIR::LEFT;     break; }
             }
-            callService<DI::srv::SetDirection>(m_clientSetDirection, req);
+            changeDirection(dir);
           }
+          break;
+        }
+        case USER_COMMAND::DIR_KEY: {
+          runDirectMode();
           break;
         }
         case USER_COMMAND::QUIT: {

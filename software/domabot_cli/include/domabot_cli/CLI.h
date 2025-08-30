@@ -22,6 +22,8 @@
 #include <domabot_interfaces/srv/set_settings.hpp>
 #include <domabot_interfaces/srv/stop.hpp>
 
+#include <domabot_firmware/firmware_data_types.h>
+
 #include <rclcpp/rclcpp.hpp>
 
 #include <magic_enum/magic_enum.hpp>
@@ -29,6 +31,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <termios.h>
 
 namespace Domabot {
 
@@ -61,6 +64,10 @@ class CLI : public rclcpp::Node {
     /** @brief Container to transfer msg between subscriber and main threads */
     DI::msg::Status m_msgLastStatus;
     std::mutex m_mtxLastStatus;
+
+    bool isDirectMode = false;
+    int m_kfd = 0;
+    struct termios m_cooked, m_raw;
 
     /**
      * @brief Get printable name of enum item.
@@ -211,6 +218,22 @@ class CLI : public rclcpp::Node {
     void statusCallback(const DI::msg::Status& msg);
 
     #undef DI
+
+    /**
+     * @brief Changed direction in Direct mode.
+     * @param[in] dir New direction.
+     */
+    void changeDirection(const DIR dir);
+
+    /**
+     * @brief Control robot by arrows key in direct mode.
+     * @details Change console in raw mode. Need call restoreConsoleMode method on
+     * Ctrl-C during this method execution.
+    */
+    void runDirectMode();
+
+     /** @brief Return console to usual mode. */
+    void restoreConsoleMode();
 
   public:
     CLI();
