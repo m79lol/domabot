@@ -8,6 +8,6 @@
     ros_args="--log-level domabot.domabot_controller:=DEBUG --log-level domabot.domabot_controller.Modbus:=INFO --disable-rosout-logs"
     launch-prefix=""
   >
-    <param from="$(find-pkg-share domabot_controller)/config/config.yaml" />
+    <param from="$(find-pkg-share domabot_controller)/config/default.yaml" />
   </node>
 </launch>

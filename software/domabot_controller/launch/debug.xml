@@ -8,6 +8,6 @@
     ros_args="--log-level domabot.domabot_controller:=DEBUG --disable-rosout-logs"
     launch-prefix="gdbserver localhost:3000"
   >
-    <param from="$(find-pkg-share domabot_controller)/config/config.yaml" />
+    <param from="$(find-pkg-share domabot_controller)/config/default.yaml" />
   </node>
 </launch>
