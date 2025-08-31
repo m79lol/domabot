@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <node
+    pkg="usb_cam"
+    exec="usb_cam_node_exe"
+    output="screen"
+    namespace="domabot"
+    ros_args="--disable-rosout-logs"
+    launch-prefix=""
+  >
+    <param from="$(find-pkg-share domabot_core)/config/default_cam.yaml" />
+  </node>
+</launch>
