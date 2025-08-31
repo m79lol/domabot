@@ -10,15 +10,15 @@
 
 #include <domabot_common_lib/Exception.h>
 
-#include <domabot_interfaces/msg/status.hpp>
-#include <domabot_interfaces/srv/brake.hpp>
-#include <domabot_interfaces/srv/get_data.hpp>
-#include <domabot_interfaces/srv/move.hpp>
-#include <domabot_interfaces/srv/save_settings.hpp>
-#include <domabot_interfaces/srv/set_direction.hpp>
-#include <domabot_interfaces/srv/set_mode.hpp>
-#include <domabot_interfaces/srv/set_settings.hpp>
-#include <domabot_interfaces/srv/stop.hpp>
+#include <domabot_controller_interfaces/msg/status.hpp>
+#include <domabot_controller_interfaces/srv/brake.hpp>
+#include <domabot_controller_interfaces/srv/get_data.hpp>
+#include <domabot_controller_interfaces/srv/move.hpp>
+#include <domabot_controller_interfaces/srv/save_settings.hpp>
+#include <domabot_controller_interfaces/srv/set_direction.hpp>
+#include <domabot_controller_interfaces/srv/set_mode.hpp>
+#include <domabot_controller_interfaces/srv/set_settings.hpp>
+#include <domabot_controller_interfaces/srv/stop.hpp>
 
 #include <domabot_firmware/firmware_data_types.h>
 
@@ -40,7 +40,7 @@ class Controller : public rclcpp::Node {
     using CnstPtr = std::shared_ptr<const Controller>;
 
   protected:
-    #define DI domabot_interfaces
+    #define DI domabot_controller_interfaces
     static const char m_statusTopicName[];  ///< Status topic name.
 
     /** @brief Modbus class wrapper, contains connections descriptor. */

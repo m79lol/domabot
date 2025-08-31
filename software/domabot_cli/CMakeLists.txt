@@ -27,7 +27,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_components REQUIRED)
-find_package(domabot_interfaces REQUIRED)
+find_package(domabot_controller_interfaces REQUIRED)
 find_package(domabot_common_lib REQUIRED)
 
 add_executable(${PROJECT_NAME}_node
@@ -37,7 +37,7 @@ add_executable(${PROJECT_NAME}_node
 )
 ament_target_dependencies(${PROJECT_NAME}_node
   rclcpp
-  domabot_interfaces
+  domabot_controller_interfaces
   domabot_common_lib
 )
 

@@ -10,7 +10,7 @@
 
 namespace Domabot {
 
-#define DI domabot_interfaces
+#define DI domabot_controller_interfaces
 
 CLI::CLI() try : Node("domabot_cli") {
   m_subStatus = create_subscription<DI::msg::Status>(

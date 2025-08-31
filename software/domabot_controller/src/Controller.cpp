@@ -8,7 +8,7 @@
 #include <domabot_controller/ControllerParams.h>
 
 namespace Domabot {
-#define DI domabot_interfaces
+#define DI domabot_controller_interfaces
 const char Controller::m_statusTopicName[] = "status";
 
 Controller::Controller() try : Node("domabot_controller") {
