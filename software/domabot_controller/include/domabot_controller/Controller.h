@@ -12,6 +12,7 @@
 
 #include <domabot_controller_interfaces/msg/status.hpp>
 #include <domabot_controller_interfaces/srv/brake.hpp>
+#include <domabot_controller_interfaces/srv/enable_motors.hpp>
 #include <domabot_controller_interfaces/srv/get_data.hpp>
 #include <domabot_controller_interfaces/srv/move.hpp>
 #include <domabot_controller_interfaces/srv/save_settings.hpp>
@@ -50,6 +51,7 @@ class Controller : public rclcpp::Node {
       m_pubStatus = nullptr;
 
     rclcpp::Service<DI::srv::Brake>::SharedPtr m_srvBrake = nullptr;
+    rclcpp::Service<DI::srv::EnableMotors>::SharedPtr m_srvEnableMotors = nullptr;
     rclcpp::Service<DI::srv::GetData>::SharedPtr m_srvGetData = nullptr;
     rclcpp::Service<DI::srv::Move>::SharedPtr m_srvMove = nullptr;
     rclcpp::Service<DI::srv::SaveSettings>::SharedPtr m_srvSaveSettings = nullptr;
@@ -270,6 +272,11 @@ class Controller : public rclcpp::Node {
     void brakeSrvCallback(
         const std::shared_ptr<DI::srv::Brake::Request> req
       , std::shared_ptr<DI::srv::Brake::Response> res);
+
+    /** @brief Switch enable motors signal. */
+    void enableMotorsSrvCallback(
+        const std::shared_ptr<DI::srv::EnableMotors::Request> req
+      , std::shared_ptr<DI::srv::EnableMotors::Response> res);
 
     /** @brief Service for obtain all status & settings data from
      * micro-controller. */

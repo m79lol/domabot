@@ -55,6 +55,14 @@ Controller::Controller() try : Node("domabot_controller") {
     , rcl_service_get_default_options().qos
     , m_serviceCallbackGroup
   );
+  m_srvEnableMotors = create_service<DI::srv::EnableMotors>(
+      "enable_motors"
+    , std::bind(
+        &Controller::enableMotorsSrvCallback, this,
+        std::placeholders::_1, std::placeholders::_2)
+    , rcl_service_get_default_options().qos
+    , m_serviceCallbackGroup
+  );
   m_srvGetData = create_service<DI::srv::GetData>(
       "get_data"
     , std::bind(
@@ -222,6 +230,7 @@ void Controller::runCommand(const CMD cmd) try {
   RCLCPP_INFO_STREAM(get_logger(), "Execute command: " << commandName);
 
   switch (cmd) {
+    case CMD::ENBL: { [[fallthrough]]; }
     case CMD::MODE: { [[fallthrough]]; }
     case CMD::MOVE: { [[fallthrough]]; }
     case CMD::SAVE: { [[fallthrough]]; }
@@ -317,6 +326,17 @@ void Controller::brakeSrvCallback(
   processExceptionCommand<DI::srv::Brake>(res, e);
 }
 
+void Controller::enableMotorsSrvCallback(
+    const std::shared_ptr<DI::srv::EnableMotors::Request> req
+  , std::shared_ptr<DI::srv::EnableMotors::Response> res
+) try {
+  RCLCPP_DEBUG_STREAM(get_logger(), "Enable motors service called.");
+  m_modbus->writeCoil(COIL::ENBL, req->enable_motors);
+  processRequestCommand<DI::srv::EnableMotors>(res, CMD::ENBL);
+} catch (const std::exception& e) {
+  processExceptionCommand<DI::srv::EnableMotors>(res, e);
+}
+
 void Controller::getDataSrvCallback(
     [[maybe_unused]] const std::shared_ptr<DI::srv::GetData::Request> req
   , std::shared_ptr<DI::srv::GetData::Response> res
@@ -368,6 +388,7 @@ void Controller::getDataSrvCallback(
   res->mode.mode           = holdingRegs.at(REG_HLD::MODE);
   res->command.command     = holdingRegs.at(REG_HLD::CMD);
   res->direction.direction = holdingRegs.at(REG_HLD::DIR);
+  res->is_motors_enabled = m_modbus->readCoil(COIL::ENBL);
 
   auto& settings = res->settings;
   res->settings.update_rate.push_back(holdingRegs.at(REG_HLD::RATE));

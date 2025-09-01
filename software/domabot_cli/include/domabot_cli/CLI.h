@@ -14,6 +14,7 @@
 
 #include <domabot_controller_interfaces/msg/status.hpp>
 #include <domabot_controller_interfaces/srv/brake.hpp>
+#include <domabot_controller_interfaces/srv/enable_motors.hpp>
 #include <domabot_controller_interfaces/srv/get_data.hpp>
 #include <domabot_controller_interfaces/srv/move.hpp>
 #include <domabot_controller_interfaces/srv/save_settings.hpp>
@@ -53,6 +54,7 @@ class CLI : public rclcpp::Node {
 
     // service clients for domabot controller node
     rclcpp::Client<DI::srv::Brake>::SharedPtr m_clientBrake               = nullptr;
+    rclcpp::Client<DI::srv::EnableMotors>::SharedPtr m_clientEnableMotors = nullptr;
     rclcpp::Client<DI::srv::GetData>::SharedPtr m_clientGetData           = nullptr;
     rclcpp::Client<DI::srv::Move>::SharedPtr m_clientMove                 = nullptr;
     rclcpp::Client<DI::srv::SaveSettings>::SharedPtr m_clientSaveSettings = nullptr;

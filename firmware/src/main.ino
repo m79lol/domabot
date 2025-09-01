@@ -31,13 +31,13 @@
 #define MOTOR_R_DIR_PIN  8
 #define MOTOR_R_EN_PIN   10
 
-#define WRD_MODE_SWITCH_PIN 9999999
-#define DIR_FORWARD_PIN     9999999
-#define DIR_RIGHT_PIN       9999999
-#define DIR_BACKWARD_PIN    9999999
-#define DIR_LEFT_PIN        9999999
+#define WRD_MODE_SWITCH_PIN 9999
+#define DIR_FORWARD_PIN     9999
+#define DIR_RIGHT_PIN       9999
+#define DIR_BACKWARD_PIN    9999
+#define DIR_LEFT_PIN        9999
 
-#define EMERGENCY_STOP_PIN  9999999
+#define EMERGENCY_STOP_PIN  9999
 // end PINS
 
 #define STEPS_REV 1600  ///< Steps per motor revolution
@@ -63,6 +63,7 @@ struct ControllerData {
 };
 
 uint8_t isSteppersMoving = 0;
+bool isMotorsEnabled = false;
 MODE mode = MODE::TRG;
 DIR direction = DIR::STOP;
 const ControllerData defaultControllerData;
@@ -171,9 +172,11 @@ int16_t stepsToMm(const StepperData& stepperData, const int32_t steps) {
 void initSteppers() {
   static bool isSteppersInited = false;
   if (isSteppersInited) {
-    for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
-      steppers[i].brake();
-      steppers[i].disable();
+    if (isMotorsEnabled) {
+      for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
+        steppers[i].brake();
+        steppers[i].disable();
+      }
     }
     isSteppersInited = false;
   }
@@ -184,7 +187,9 @@ void initSteppers() {
     steppers[i].setAcceleration(uint16_t(mmToSteps(
       stepperData, stepperData.maxAccMms2)));
     steppers[i].reverse(0 == stepperData.isForward);
-    steppers[i].enable();
+    if (isMotorsEnabled) {
+      steppers[i].enable();
+    }
   }
   isSteppersInited = true;
 
@@ -428,6 +433,18 @@ void processCommand() {
       completeCommand(status);
       break;
     };
+    case CMD::ENBL: {
+      isMotorsEnabled = coilRead(COIL::ENBL);
+       for (uint8_t i = 0; i < MOTOR_CNT; ++i) {
+        if (isMotorsEnabled) {
+          steppers[i].enable();
+        } else {
+          steppers[i].disable();
+        }
+      }
+      completeCommand(STS::OK);
+      break;
+    }
     default: {
       completeCommand(STS::ERR_CMD);
       break;

@@ -17,6 +17,7 @@ CLI::CLI() try : Node("domabot_cli") {
       "status", 1, std::bind(&CLI::statusCallback, this, std::placeholders::_1));
 
   m_clientBrake        = create_client<DI::srv::Brake>("brake");
+  m_clientEnableMotors = create_client<DI::srv::EnableMotors>("enable_motors");
   m_clientGetData      = create_client<DI::srv::GetData>("get_data");
   m_clientMove         = create_client<DI::srv::Move>("move");
   m_clientSaveSettings = create_client<DI::srv::SaveSettings>("save_settings");
@@ -138,6 +139,7 @@ void CLI::runCLI() try {
     , QUIT    = 7
     , GET     = 8
     , DIR_KEY = 9
+    , ENBL    = 10
   };
 
   bool isTerminate = false;
@@ -156,6 +158,7 @@ void CLI::runCLI() try {
           , { "d" , "Change dir"        , USER_COMMAND::DIR     }
           , { "q" , "Quit"              , USER_COMMAND::QUIT    }
           , { "k" , "Direct mode by key", USER_COMMAND::DIR_KEY }
+          , { "e" , "Enable motors"     , USER_COMMAND::ENBL    }
         });
 
       switch (command) {
@@ -316,6 +319,19 @@ void CLI::runCLI() try {
         }
         case USER_COMMAND::DIR_KEY: {
           runDirectMode();
+          break;
+        }
+        case USER_COMMAND::ENBL: {
+          const auto req = std::make_shared<DI::srv::EnableMotors::Request>();
+          while (rclcpp::ok()) {
+            const std::string entered = UserInteraction::askInput("Enter enable motors signal value (1/0): ");
+            int signal = StringTools::stringToNumber<int>(entered);
+            if (0 == signal || 1 == signal) {
+              req->enable_motors = 0 != signal;
+              break;
+            }
+          }
+          callService<DI::srv::EnableMotors>(m_clientEnableMotors, req);
           break;
         }
         case USER_COMMAND::QUIT: {

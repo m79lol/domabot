@@ -1,5 +1,6 @@
 ---
 ResponseData response_data
+bool is_motors_enabled
 Status status
 ControllerSettings settings
 Command command #last
