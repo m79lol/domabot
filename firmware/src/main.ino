@@ -300,6 +300,20 @@ void processCommand() {
   // new command received
   coilWrite(COIL::NEW_CMD, 0);
   const CMD command = (CMD) holdingRegisterRead(REG_HLD::CMD);
+
+  switch (command) {
+    case CMD::BRAKE:
+    case CMD::DIR:
+    case CMD::MOVE:
+    case CMD::STOP: {
+      if (!isMotorsEnabled) {
+        completeCommand(STS::ERR_ENBL);
+        return;
+      }
+    }
+    default: { break; }
+  }
+
   switch (command) {  // priority commands
     case CMD::BRAKE:
     case CMD::STOP:
