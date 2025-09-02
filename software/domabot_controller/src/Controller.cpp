@@ -38,6 +38,7 @@ Controller::Controller() try : Node("domabot_controller") {
 
   const auto pubRate = holdingRegs.at(REG_HLD::RATE);
   m_currentMode = checkMode(holdingRegs.at(REG_HLD::MODE), true);
+  m_isMotorsEnabled = m_modbus->readCoil(COIL::ENBL);
 
   m_pubStatus = create_publisher<DI::msg::Status>(
     m_statusTopicName, 1);
@@ -230,6 +231,21 @@ void Controller::runCommand(const CMD cmd) try {
   RCLCPP_INFO_STREAM(get_logger(), "Execute command: " << commandName);
 
   switch (cmd) {
+    case CMD::BRAKE: { [[fallthrough]]; }
+    case CMD::DIR:   { [[fallthrough]]; }
+    case CMD::MODE:  { [[fallthrough]]; }
+    case CMD::MOVE:  { [[fallthrough]]; }
+    case CMD::STOP: {
+      if (!m_isMotorsEnabled) {
+        throw Exception::createError(
+            "Command ", commandName , " requires enabled motors!");
+      }
+      [[fallthrough]];
+    }
+    default: { break; }
+  }
+
+  switch (cmd) {
     case CMD::ENBL: { [[fallthrough]]; }
     case CMD::MODE: { [[fallthrough]]; }
     case CMD::MOVE: { [[fallthrough]]; }
@@ -240,13 +256,9 @@ void Controller::runCommand(const CMD cmd) try {
             "Can't execute command ", commandName
           , " during moving!");
       }
-      break;
+      [[fallthrough]];
     }
-
-    // can execute at any time
-    case CMD::DIR: { break; }
-    case CMD::BRAKE: { break; }
-    case CMD::STOP:  { break; }
+    default: { break; }
   }
 
   m_modbus->writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
@@ -333,6 +345,7 @@ void Controller::enableMotorsSrvCallback(
   RCLCPP_DEBUG_STREAM(get_logger(), "Enable motors service called.");
   m_modbus->writeCoil(COIL::ENBL, req->enable_motors);
   processRequestCommand<DI::srv::EnableMotors>(res, CMD::ENBL);
+  m_isMotorsEnabled = req->enable_motors;
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::EnableMotors>(res, e);
 }

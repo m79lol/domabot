@@ -81,6 +81,7 @@ class Controller : public rclcpp::Node {
     /** @brief Moving flag for blocking another not emergency commands. */
     std::atomic_bool m_isMoving{0};
     MODE m_currentMode = MODE::TRG;  ///< Current robot behavior.
+    bool m_isMotorsEnabled = false;  ///< Allow all movement commands.
 
     /**
      * @brief Check that value in enum.
