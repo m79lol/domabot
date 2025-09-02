@@ -31,6 +31,7 @@ enum class STS : uint8_t {
   ERR_MODE    = 4,  ///< Invalid requested mode, see enum MODE.
   ERR_DIR     = 5,  ///< Invalid requested direction, see enum DIR.
   EMERGENCY   = 6,  ///< Emergency is active (by hardware).
+  ERR_ENBL    = 7,  ///< Motors are not enabled for this command.
   ERR_UNKNOWN = 99  ///< Unknown error.
 };
 
