@@ -165,15 +165,14 @@ class Controller : public rclcpp::Node {
      * @param[in] mode Requested mode for requested command.
      * @throws If requested mode not equal current mode.
      */
-    void checkAllowedMode(const CMD cmd, const MODE mode) {
-      if (mode != m_currentMode) {
-        throw Exception::createError(
-            "Can't execute command ", magic_enum::enum_name(cmd)
-          , " in mode ", magic_enum::enum_name(m_currentMode)
-          , "! This command execute only in "
-          , magic_enum::enum_name(mode), " mode.");
-      }
-    }
+    void checkAllowedMode(const CMD cmd, const MODE mode);
+
+    /**
+     * @brief Check enabled motors flag.
+     * @param[in] cmd Current command, only for print name.
+     * @throws If motors is not enabled.
+     */
+    void checkEnabledMotors(const CMD cmd);
 
     /**
      * @brief Write controller settings to Modbus Holding registers.
@@ -221,7 +220,7 @@ class Controller : public rclcpp::Node {
      * @details Catch all exceptions, print it and fill negative response fields.
      * @tparam Service Processed service.
      * @param[in] res Pointer to not filled service response.
-     * @param[in] e Catched exception.
+     * @param[in] e Caught exception.
      */
     template <typename Service> void processExceptionCommand(
       std::shared_ptr<typename Service::Response> res,
