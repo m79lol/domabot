@@ -187,6 +187,23 @@ CMD Controller::checkCommand(const uint16_t value) try {
   return checkEnumItem<CMD>(value, "command");
 } defaultCatch
 
+void Controller::checkAllowedMode(const CMD cmd, const MODE mode) {
+  if (mode != m_currentMode) {
+    throw Exception::createError(
+        "Can't execute command ", magic_enum::enum_name(cmd)
+      , " in mode ", magic_enum::enum_name(m_currentMode)
+      , "! This command execute only in "
+      , magic_enum::enum_name(mode), " mode.");
+  }
+}
+
+void Controller::checkEnabledMotors(const CMD cmd) {
+  if (!m_isMotorsEnabled) {
+    throw Exception::createError(
+        "Command ", magic_enum::enum_name(cmd) , " requires enabled motors!");
+  }
+}
+
 void Controller::setSettingsToRegisters(
       const DI::msg::ControllerSettings& settings) try {
   Modbus::HoldingRegistersValues holdingRegs;
@@ -333,6 +350,7 @@ void Controller::brakeSrvCallback(
   , std::shared_ptr<DI::srv::Brake::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "Brake service called.");
+  checkEnabledMotors(CMD::BRAKE);
   processRequestCommand<DI::srv::Brake>(res, CMD::BRAKE);
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::Brake>(res, e);
@@ -382,15 +400,6 @@ void Controller::getDataSrvCallback(
     , REG_HLD::DIR
   });
 
-  checkStatus(inputRegs.at(REG_INP::STS), true);
-
-  checkCommand(holdingRegs.at(REG_HLD::CMD));
-  checkMode(holdingRegs.at(REG_HLD::MODE), true);
-  checkDirection(holdingRegs.at(REG_HLD::DIR));
-
-  checkStepperStatus(inputRegs.at(REG_INP::STPR_L));
-  checkStepperStatus(inputRegs.at(REG_INP::STPR_R));
-
   auto& status = res->status;
   status.controller.status      = inputRegs.at(REG_INP::STS);
   status.stepper_left.status    = inputRegs.at(REG_INP::STPR_L);
@@ -425,6 +434,15 @@ void Controller::getDataSrvCallback(
   stepper_right.is_forward      .push_back(holdingRegs.at(REG_HLD::IS_FROWARD_R));
   settings.stepper_right.push_back(stepper_right);
 
+  checkStatus(inputRegs.at(REG_INP::STS), false);
+
+  checkCommand(holdingRegs.at(REG_HLD::CMD));
+  checkMode(holdingRegs.at(REG_HLD::MODE), true);
+  checkDirection(holdingRegs.at(REG_HLD::DIR));
+
+  checkStepperStatus(inputRegs.at(REG_INP::STPR_L));
+  checkStepperStatus(inputRegs.at(REG_INP::STPR_R));
+
   res->response_data.is_success = true;
   res->response_data.error_message = "";
 } catch (const std::exception& e) {
@@ -438,6 +456,7 @@ void Controller::moveSrvCallback(
   RCLCPP_DEBUG_STREAM(get_logger(), "Move service called.");
 
   checkAllowedMode(CMD::MOVE, MODE::TRG);
+  checkEnabledMotors(CMD::MOVE);
 
   m_modbus->writeHoldingRegisters({
       { REG_HLD::TARG_L, (uint16_t) req->target_position_left }
@@ -467,7 +486,7 @@ void Controller::saveSettingsSrvCallback(
       restartStatusTimer(settings.front().update_rate.front());
     }
   }
-}  catch (const std::exception& e) {
+} catch (const std::exception& e) {
   processExceptionCommand<DI::srv::SaveSettings>(res, e);
 }
 
@@ -479,6 +498,7 @@ void Controller::setDirectionSrvCallback(
 
   checkDirection(req->direction.direction);
   checkAllowedMode(CMD::DIR, MODE::DRCT);
+  checkEnabledMotors(CMD::DIR);
 
   m_modbus->writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
 
@@ -493,6 +513,7 @@ void Controller::setModeSrvCallback(
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "SetMode service called.");
 
+  checkEnabledMotors(CMD::MODE);
   const MODE tryMode = checkMode(req->mode.mode);
   m_modbus->writeHoldingRegister(REG_HLD::MODE, req->mode.mode);
 
@@ -525,6 +546,7 @@ void Controller::stopSrvCallback(
   , std::shared_ptr<DI::srv::Stop::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "Stop service called.");
+  checkEnabledMotors(CMD::STOP);
   processRequestCommand<DI::srv::Stop>(res, CMD::STOP);
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::Stop>(res, e);
