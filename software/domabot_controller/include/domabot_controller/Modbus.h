@@ -223,7 +223,7 @@ class Modbus {
      * @throws On fails create modbus context or assign slave id.
      */
     Modbus(
-      const rclcpp::Logger& logger
+        const rclcpp::Logger& logger
       , const std::string& path
       , const unsigned int baudRate
       , const char parity
@@ -232,6 +232,7 @@ class Modbus {
       , const unsigned int slaveId
       , const double connectDelay
       , const double modbusTimeout
+      , const std::function<void()>& connectCallback
     );
 
     Modbus(const Modbus& other)            = delete;

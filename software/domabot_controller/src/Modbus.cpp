@@ -18,7 +18,11 @@ Modbus::Modbus(
   , const double connectDelay
   , const double modbusTimeout
   , const std::function<void()>& connectCallback
-) try : m_logger(logger), m_connectDelay(connectDelay), m_connectCallback(connectCallback) {
+) try :
+    m_logger(logger)
+  , m_connectCallback(connectCallback)
+  , m_connectDelay(connectDelay)
+{
   RCLCPP_DEBUG_STREAM(m_logger, "Modbus context create...");
   m_cntx = modbus_new_rtu(
     path.c_str(), baudRate, parity, dataBits, stopBits);

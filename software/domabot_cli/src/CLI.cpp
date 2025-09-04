@@ -324,7 +324,8 @@ void CLI::runCLI() try {
         case USER_COMMAND::ENBL: {
           const auto req = std::make_shared<DI::srv::EnableMotors::Request>();
           while (rclcpp::ok()) {
-            const std::string entered = UserInteraction::askInput("Enter enable motors signal value (1/0): ");
+            const std::string entered = UserInteraction::askInput(
+              "Enter enable motors signal value (1/0): ");
             int signal = StringTools::stringToNumber<int>(entered);
             if (0 == signal || 1 == signal) {
               req->enable_motors = 0 != signal;
