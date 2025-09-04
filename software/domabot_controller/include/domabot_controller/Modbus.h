@@ -57,6 +57,9 @@ class Modbus {
     mutable std::mutex m_mtx;  ///< Mutex for modbus context.
     bool m_isConnected = false;  ///< Is device connected flag.
 
+    /** @brief Calls success after connect. */
+    std::function<void()> m_connectCallback = nullptr;
+
     /**
      * @brief Delay after connect in seconds;
      * @details Needs to establish connection on micro-controller side.

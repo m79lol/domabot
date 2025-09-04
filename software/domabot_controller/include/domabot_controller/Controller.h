@@ -69,8 +69,7 @@ class Controller : public rclcpp::Node {
     /** @brief Multi-thread call back group for services. */
     rclcpp::CallbackGroup::SharedPtr m_serviceCallbackGroup = nullptr;
 
-    std::atomic_uint16_t m_statusRate{1};  ///< Rate for status publishing.
-    std::mutex m_mtxTimer;  ///< Mutex for rate & status timer.
+    std::mutex m_mtxTimer;  ///< Mutex status timer.
 
     /** @brief Checks subscribers for status and restart status timer. */
     rclcpp::TimerBase::SharedPtr m_statsTimer = nullptr;
@@ -79,9 +78,16 @@ class Controller : public rclcpp::Node {
     std::atomic_bool m_isStatusSubscriber{0};
 
     /** @brief Moving flag for blocking another not emergency commands. */
-    std::atomic_bool m_isMoving{0};
-    MODE m_currentMode = MODE::TRG;  ///< Current robot behavior.
-    bool m_isMotorsEnabled = false;  ///< Allow all movement commands.
+    std::atomic_bool m_isMoving{true};
+
+    std::atomic<MODE> m_currentMode{MODE::TRG};  ///< Current robot behavior.
+    std::atomic_bool m_isMotorsEnabled{false};  ///< Allow all movement commands.
+    std::atomic_bool m_isInited{false};  ///< True if internal flags is actual.
+
+    /**
+     * @brief Init internal node state by data from micro-controller.
+     */
+    void init();
 
     /**
      * @brief Check that value in enum.
@@ -175,6 +181,13 @@ class Controller : public rclcpp::Node {
     void checkEnabledMotors(const CMD cmd);
 
     /**
+     * @brief Check robot movement.
+     * @param[in] cmd Current command, only for print name.
+     * @throws If robot moving.
+     */
+    void checkMoving(const CMD cmd);
+
+    /**
      * @brief Write controller settings to Modbus Holding registers.
      * @details Write only filled settings fields.
      * @param[in] settings Controller settings.
@@ -266,7 +279,7 @@ class Controller : public rclcpp::Node {
      * @param[in] rate New rate value for status update in status topic.
      * @throws If rate is zero, because zero division.
      */
-    void restartStatusTimer(const uint16_t rate);
+    void restartStatusTimer(uint16_t rate);
 
     /** @brief Performs emergency stops robot's wheels. */
     void brakeSrvCallback(
