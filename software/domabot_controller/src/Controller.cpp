@@ -121,7 +121,6 @@ Controller::Controller() try : Node("domabot_controller") {
   );
 
   restartStatusTimer(1);
-
 } defaultCatch
 
 void Controller::init() try {
@@ -207,25 +206,21 @@ CMD Controller::checkCommand(const uint16_t value) try {
   return checkEnumItem<CMD>(value, "command");
 } defaultCatch
 
-void Controller::checkAllowedMode(const CMD cmd, const MODE mode) {
-  const MODE currentMode = m_currentMode.load(std::memory_order_acquire);
-  if (mode != currentMode) {
+void Controller::checkAllowedMode(const MODE mode) const {
+  if (mode != m_currentMode.load(std::memory_order_acquire)) {
     throw Exception::createError(
-        "Can't execute command ", magic_enum::enum_name(cmd)
-      , " in mode ", magic_enum::enum_name(currentMode)
-      , "! This command execute only in "
-      , magic_enum::enum_name(mode), " mode.");
+        "Requires ", magic_enum::enum_name(mode), " mode.");
   }
 }
 
-void Controller::checkEnabledMotors() {
+void Controller::checkEnabledMotors() const {
   if (!m_isMotorsEnabled.load(std::memory_order_acquire)) {
     throw Exception::createError(
         "Require enabled motors!");
   }
 }
 
-void Controller::checkMoving() {
+void Controller::checkMoving() const {
   if (!m_isMoving.load(std::memory_order_acquire)) {
     throw Exception::createError(
         "Require full stop!");
@@ -459,7 +454,7 @@ void Controller::moveSrvCallback(
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "Move service called.");
 
-  checkAllowedMode(CMD::MOVE, MODE::TRG);
+  checkAllowedMode(MODE::TRG);
   checkEnabledMotors();
   checkMoving();
 
@@ -504,7 +499,7 @@ void Controller::setDirectionSrvCallback(
   RCLCPP_DEBUG_STREAM(get_logger(), "SetDirection service called.");
 
   checkDirection(req->direction.direction);
-  checkAllowedMode(CMD::DIR, MODE::DRCT);
+  checkAllowedMode(MODE::DRCT);
   checkEnabledMotors();
   checkMoving();
 

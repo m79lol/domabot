@@ -1,9 +1,11 @@
 # Domabot
 
-This is repository for ROS2 packages for Domabot.
-Domabot is home care mobile robot. It is mobile platform with remote control at current project stage, that allow to keep an eye on home.
+Domabot is home care mobile robot.
+It is mobile platform with remote control at current project stage, that allow to keep an eye on home.
 
-The navigation & manipulations hardware & software skills were add step by step in future work.
+The Domabot ROS2 packages stores in this repository.
+
+The hardware & software skills (like navigation & manipulation) were add step by step in future work.
 
 ## Requirements
 

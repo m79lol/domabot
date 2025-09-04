@@ -167,25 +167,22 @@ class Controller : public rclcpp::Node {
 
     /**
      * @brief Validates current mode to mode of requested command.
-     * @param[in] cmd Requested command.
-     * @param[in] mode Requested mode for requested command.
+     * @param[in] mode Requested mode.
      * @throws If requested mode not equal current mode.
      */
-    void checkAllowedMode(const CMD cmd, const MODE mode);
+    void checkAllowedMode(const MODE mode) const;
 
     /**
      * @brief Check enabled motors flag.
-     * @param[in] cmd Current command, only for print name.
      * @throws If motors is not enabled.
      */
-    void checkEnabledMotors(const CMD cmd);
+    void checkEnabledMotors() const;
 
     /**
      * @brief Check robot movement.
-     * @param[in] cmd Current command, only for print name.
      * @throws If robot moving.
      */
-    void checkMoving(const CMD cmd);
+    void checkMoving() const;
 
     /**
      * @brief Write controller settings to Modbus Holding registers.
