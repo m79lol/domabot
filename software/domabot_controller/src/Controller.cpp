@@ -22,23 +22,16 @@ Controller::Controller() try : Node("domabot_controller") {
     , ControllerParams::getSlaveId      (*this)
     , ControllerParams::getConnectDelay (*this)
     , ControllerParams::getModbusTimeout(*this)
+    , std::bind(&Controller::init, this)
   );
 
-  const auto protocolVersion = m_modbus->readInputRegister(REG_INP::VER);
-  if (PROTOCOL_VERSION != protocolVersion) {
-    throw Exception::createError(
-        "Protocol version mismatch! Awaited: ", PROTOCOL_VERSION
-      , ". Obtained: ", protocolVersion);
-  }
-
-  const Modbus::HoldingRegistersValues holdingRegs = m_modbus->readHoldingRegisters({
-    REG_HLD::RATE,
-    REG_HLD::MODE
-  });
-
-  const auto pubRate = holdingRegs.at(REG_HLD::RATE);
-  m_currentMode = checkMode(holdingRegs.at(REG_HLD::MODE), true);
-  m_isMotorsEnabled = m_modbus->readCoil(COIL::ENBL);
+  /*try {
+    init();
+  } catch (const std::exception& e) {
+    RCLCPP_WARN_STREAM(
+        get_logger()
+      , "Unsuccess first init. Try init later...");
+  };*/
 
   m_pubStatus = create_publisher<DI::msg::Status>(
     m_statusTopicName, 1);
@@ -121,20 +114,38 @@ Controller::Controller() try : Node("domabot_controller") {
     , m_serviceCallbackGroup
   );
 
-  restartStatusTimer(pubRate);
-
   m_statsTimer = create_wall_timer(
       std::chrono::milliseconds(1000)
     , std::bind(&Controller::statsTimerCallback, this)
     , m_timerCallbackGroup
   );
 
-  RCLCPP_INFO_STREAM(
-      get_logger()
-    , "Node " << get_name() << " inited, with protocol version: "
-      << protocolVersion);
+  restartStatusTimer(1);
 
-  switch (m_currentMode) {
+} defaultCatch
+
+void Controller::init() try {
+  m_isInited.store(false, std::memory_order_relaxed);
+
+  const auto protocolVersion = m_modbus->readInputRegister(REG_INP::VER);
+  if (PROTOCOL_VERSION != protocolVersion) {
+    throw Exception::createError(
+        "Protocol version mismatch! Awaited: ", PROTOCOL_VERSION
+      , ". Obtained: ", protocolVersion);
+  }
+
+  const Modbus::HoldingRegistersValues holdingRegs = m_modbus->readHoldingRegisters({
+    REG_HLD::RATE,
+    REG_HLD::MODE
+  });
+
+  const MODE currentMode = checkMode(holdingRegs.at(REG_HLD::MODE), true);
+
+  m_currentMode.store(currentMode, std::memory_order_relaxed);
+  m_isMotorsEnabled.store(
+    m_modbus->readCoil(COIL::ENBL), std::memory_order_relaxed);
+
+  switch (currentMode) {
     case MODE::TRG: {
       runCommand(CMD::BRAKE);
       break;
@@ -147,6 +158,15 @@ Controller::Controller() try : Node("domabot_controller") {
     case MODE::WRD: { break; }
     default:        { break; }
   }
+
+  restartStatusTimer(holdingRegs.at(REG_HLD::RATE));
+
+  RCLCPP_INFO_STREAM(
+    get_logger()
+  , "Node " << get_name() << " inited, with protocol version: "
+    << protocolVersion);
+
+  m_isInited.store(true, std::memory_order_relaxed);
 } defaultCatch
 
 STS Controller::checkStatus(const uint16_t value, const bool selfCheck) const try {
@@ -188,19 +208,27 @@ CMD Controller::checkCommand(const uint16_t value) try {
 } defaultCatch
 
 void Controller::checkAllowedMode(const CMD cmd, const MODE mode) {
-  if (mode != m_currentMode) {
+  const MODE currentMode = m_currentMode.load(std::memory_order_acquire);
+  if (mode != currentMode) {
     throw Exception::createError(
         "Can't execute command ", magic_enum::enum_name(cmd)
-      , " in mode ", magic_enum::enum_name(m_currentMode)
+      , " in mode ", magic_enum::enum_name(currentMode)
       , "! This command execute only in "
       , magic_enum::enum_name(mode), " mode.");
   }
 }
 
-void Controller::checkEnabledMotors(const CMD cmd) {
-  if (!m_isMotorsEnabled) {
+void Controller::checkEnabledMotors() {
+  if (!m_isMotorsEnabled.load(std::memory_order_acquire)) {
     throw Exception::createError(
-        "Command ", magic_enum::enum_name(cmd) , " requires enabled motors!");
+        "Require enabled motors!");
+  }
+}
+
+void Controller::checkMoving() {
+  if (!m_isMoving.load(std::memory_order_acquire)) {
+    throw Exception::createError(
+        "Require full stop!");
   }
 }
 
@@ -247,37 +275,6 @@ void Controller::runCommand(const CMD cmd) try {
   const auto commandName = magic_enum::enum_name(cmd);
   RCLCPP_INFO_STREAM(get_logger(), "Execute command: " << commandName);
 
-  switch (cmd) {
-    case CMD::BRAKE: { [[fallthrough]]; }
-    case CMD::DIR:   { [[fallthrough]]; }
-    case CMD::MODE:  { [[fallthrough]]; }
-    case CMD::MOVE:  { [[fallthrough]]; }
-    case CMD::STOP: {
-      if (!m_isMotorsEnabled) {
-        throw Exception::createError(
-            "Command ", commandName , " requires enabled motors!");
-      }
-      [[fallthrough]];
-    }
-    default: { break; }
-  }
-
-  switch (cmd) {
-    case CMD::ENBL: { [[fallthrough]]; }
-    case CMD::MODE: { [[fallthrough]]; }
-    case CMD::MOVE: { [[fallthrough]]; }
-    case CMD::SAVE: { [[fallthrough]]; }
-    case CMD::UPDATE: {
-      if (m_isMoving.load(std::memory_order_acquire)) {
-        throw Exception::createError(
-            "Can't execute command ", commandName
-          , " during moving!");
-      }
-      [[fallthrough]];
-    }
-    default: { break; }
-  }
-
   m_modbus->writeHoldingRegister(REG_HLD::CMD, (uint16_t) cmd);
   m_modbus->writeCoils({{COIL::NEW_CMD, true}, {COIL::NEW_STS, false}});
 
@@ -315,7 +312,7 @@ void Controller::runCommand(const CMD cmd) try {
   checkStatus(status);
 } defaultCatch
 
-void Controller::restartStatusTimer(const uint16_t rate) try {
+void Controller::restartStatusTimer(uint16_t rate) try {
   if (0 == rate) {
     throw Exception::createError(
       "Invalid update status rate! Rate must be above zero!");
@@ -329,6 +326,10 @@ void Controller::restartStatusTimer(const uint16_t rate) try {
     }
     if (nullptr != m_statusTimer && !m_statusTimer->is_canceled()) {
       m_statusTimer->cancel();  // stop old timer
+    }
+
+    if (!m_isInited.load(std::memory_order_acquire)) {
+      rate = 1;
     }
 
     const std::chrono::milliseconds pubPeriod(1000 / rate);
@@ -350,7 +351,7 @@ void Controller::brakeSrvCallback(
   , std::shared_ptr<DI::srv::Brake::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "Brake service called.");
-  checkEnabledMotors(CMD::BRAKE);
+  checkEnabledMotors();
   processRequestCommand<DI::srv::Brake>(res, CMD::BRAKE);
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::Brake>(res, e);
@@ -361,9 +362,10 @@ void Controller::enableMotorsSrvCallback(
   , std::shared_ptr<DI::srv::EnableMotors::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "Enable motors service called.");
+  checkMoving();
   m_modbus->writeCoil(COIL::ENBL, req->enable_motors);
   processRequestCommand<DI::srv::EnableMotors>(res, CMD::ENBL);
-  m_isMotorsEnabled = req->enable_motors;
+  m_isMotorsEnabled.store(req->enable_motors, std::memory_order_relaxed);
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::EnableMotors>(res, e);
 }
@@ -373,6 +375,8 @@ void Controller::getDataSrvCallback(
   , std::shared_ptr<DI::srv::GetData::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "GetData service called.");
+
+  checkMoving();
 
   const Modbus::InputRegistersValues inputRegs = m_modbus->readInputRegisters({
       REG_INP::STS
@@ -456,7 +460,8 @@ void Controller::moveSrvCallback(
   RCLCPP_DEBUG_STREAM(get_logger(), "Move service called.");
 
   checkAllowedMode(CMD::MOVE, MODE::TRG);
-  checkEnabledMotors(CMD::MOVE);
+  checkEnabledMotors();
+  checkMoving();
 
   m_modbus->writeHoldingRegisters({
       { REG_HLD::TARG_L, (uint16_t) req->target_position_left }
@@ -473,6 +478,8 @@ void Controller::saveSettingsSrvCallback(
   , std::shared_ptr<DI::srv::SaveSettings::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "SaveSettings service called.");
+
+  checkMoving();
 
   const auto& settings = req->settings;
   if (!settings.empty()) {
@@ -498,7 +505,8 @@ void Controller::setDirectionSrvCallback(
 
   checkDirection(req->direction.direction);
   checkAllowedMode(CMD::DIR, MODE::DRCT);
-  checkEnabledMotors(CMD::DIR);
+  checkEnabledMotors();
+  checkMoving();
 
   m_modbus->writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
 
@@ -513,12 +521,14 @@ void Controller::setModeSrvCallback(
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "SetMode service called.");
 
-  checkEnabledMotors(CMD::MODE);
+  checkEnabledMotors();
+  checkMoving();
+
   const MODE tryMode = checkMode(req->mode.mode);
   m_modbus->writeHoldingRegister(REG_HLD::MODE, req->mode.mode);
 
   processRequestCommand<DI::srv::SetMode>(res, CMD::MODE);
-  m_currentMode = tryMode;
+  m_currentMode.store(tryMode, std::memory_order_relaxed);
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::SetMode>(res, e);
 }
@@ -528,6 +538,8 @@ void Controller::setSettingsSrvCallback(
   , std::shared_ptr<DI::srv::SetSettings::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "SetSettings service called.");
+
+  checkMoving();
 
   const auto& settings = req->settings;
   setSettingsToRegisters(settings);
@@ -546,7 +558,7 @@ void Controller::stopSrvCallback(
   , std::shared_ptr<DI::srv::Stop::Response> res
 ) try {
   RCLCPP_DEBUG_STREAM(get_logger(), "Stop service called.");
-  checkEnabledMotors(CMD::STOP);
+  checkEnabledMotors();
   processRequestCommand<DI::srv::Stop>(res, CMD::STOP);
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::Stop>(res, e);

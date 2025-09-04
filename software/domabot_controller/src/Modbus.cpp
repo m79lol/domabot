@@ -17,7 +17,8 @@ Modbus::Modbus(
   , const unsigned int slaveId
   , const double connectDelay
   , const double modbusTimeout
-) try : m_logger(logger), m_connectDelay(connectDelay) {
+  , const std::function<void()>& connectCallback
+) try : m_logger(logger), m_connectDelay(connectDelay), m_connectCallback(connectCallback) {
   RCLCPP_DEBUG_STREAM(m_logger, "Modbus context create...");
   m_cntx = modbus_new_rtu(
     path.c_str(), baudRate, parity, dataBits, stopBits);
@@ -91,6 +92,9 @@ void Modbus::runModbusOperation(
         rclcpp::Rate(m_connectDelay).sleep();
         m_isConnected = true;
         RCLCPP_INFO_STREAM(m_logger, "Reconnected.");
+        if (m_connectCallback) {
+          m_connectCallback();
+        }
       }
       if (!operation(m_cntx)) {
         const std::string error = modbus_strerror(errno);
