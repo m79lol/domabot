@@ -10,15 +10,9 @@
 [submodule "firmware/lib/GyverStepper"]
 	path = firmware/lib/GyverStepper
 	url = https://github.com/GyverLibs/GyverStepper
-[submodule "software/other/libmodbus"]
-	path = software/other/libmodbus
-	url = https://github.com/stephane/libmodbus.git
 [submodule "software/other/FTXUI"]
 	path = software/other/FTXUI
 	url = https://github.com/ArthurSonzogni/FTXUI.git
 [submodule "software/other/magic_enum"]
 	path = software/other/magic_enum
 	url = https://github.com/Neargye/magic_enum.git
-[submodule "software/other/librealsense"]
-	path = software/other/librealsense
-	url = https://github.com/IntelRealSense/librealsense.git
