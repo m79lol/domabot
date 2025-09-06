@@ -19,3 +19,6 @@
 [submodule "software/other/magic_enum"]
 	path = software/other/magic_enum
 	url = https://github.com/Neargye/magic_enum.git
+[submodule "software/other/librealsense"]
+	path = software/other/librealsense
+	url = https://github.com/IntelRealSense/librealsense.git

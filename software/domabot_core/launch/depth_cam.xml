@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
   <node
-    pkg="usb_cam"
-    exec="usb_cam_node_exe"
+    pkg="realsense2_camera"
+    exec="realsense2_camera_node"
+    name="depth_cam"
     output="screen"
     namespace="domabot"
     ros_args="--disable-rosout-logs"
     launch-prefix=""
   >
-    <param from="$(find-pkg-share domabot_core)/config/default_cam.yaml" />
+    <param from="$(find-pkg-share domabot_core)/config/default_depth_cam.yaml" />
   </node>
 </launch>

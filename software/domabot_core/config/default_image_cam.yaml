@@ -6,11 +6,11 @@
     av_device_format: YUV422P
     brightness: 50
     camera_info_url: ''
-    camera_name: domabot_cam
+    camera_name: domabot_image_cam
     contrast: -1
     exposure: 100
     focus: -1
-    frame_id: domabot_cam
+    frame_id: domabot_image_cam
     framerate: 10.0
     gain: -1
     image_height: 720
