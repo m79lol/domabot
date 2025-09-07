@@ -40,7 +40,7 @@
 #define EMERGENCY_STOP_PIN  9999
 // end PINS
 
-#define STEPS_REV 200  ///< Steps per motor revolution
+#define STEPS_REV 400  ///< Steps per motor revolution
 // Must be above zero. Sets on stepper driver.
 static_assert(0 < STEPS_REV);
 
