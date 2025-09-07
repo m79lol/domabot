@@ -61,17 +61,24 @@ void CLI::changeDirection(const DIR dir) try {
 } defaultCatch
 
 void CLI::restoreConsoleMode() try {
-  tcsetattr(m_kfd, TCSANOW, &m_cooked);
+  tcsetattr(0, TCSANOW, &m_cooked);
 } defaultCatch
 
 void CLI::runDirectMode() try {
-  tcgetattr(m_kfd, &m_cooked);
-  memcpy(&m_raw, &m_cooked, sizeof(struct termios));
-  m_raw.c_lflag &= ~(ICANON | ECHO);
+  if (tcgetattr(0, &m_cooked) < 0) {
+    throw std::runtime_error("Failed to get old console mode");
+  }
+  struct termios raw;
+  memcpy(&raw, &m_cooked, sizeof(struct termios));
+  raw.c_lflag &= ~(ICANON | ECHO);
   // Setting a new line, then end of file
-  m_raw.c_cc[VEOL] = 1;
-  m_raw.c_cc[VEOF] = 2;
-  tcsetattr(m_kfd, TCSANOW, &m_raw);
+  raw.c_cc[VEOL]  = 1;
+  raw.c_cc[VEOF]  = 2;
+  raw.c_cc[VTIME] = 1;
+  raw.c_cc[VMIN]  = 0;
+  if (tcsetattr(0, TCSANOW, &raw) < 0) {
+    throw std::runtime_error("Failed to set new console mode");
+  }
 
   RCLCPP_INFO_STREAM(
       get_logger()
@@ -85,32 +92,32 @@ void CLI::runDirectMode() try {
   bool isQuit = false;
 
   while (rclcpp::ok()) {
-    if (read(m_kfd, &key, 1) < 0) {
+    if (read(0, &key, 1) < 0) {
       throw Exception::createError("Error read key:", strerror(errno));
     }
 
-    RCLCPP_DEBUG(get_logger(), "key: 0x%02X\n", key);
-    if (key == lastKey) {
+    if (!key || key == lastKey) {
       continue;
     }
+    RCLCPP_DEBUG(get_logger(), "key: 0x%02X", key);
 
-    constexpr char keyR     = 0x43;
-    constexpr char keyL     = 0x44;
-    constexpr char keyU     = 0x41;
-    constexpr char keyD     = 0x42;
-    constexpr char keyQ     = 0x71;
-    constexpr char keySpace = 0x20;
+    constexpr char key_RIGHT = 0x43;
+    constexpr char key_LEFT  = 0x44;
+    constexpr char key_UP    = 0x41;
+    constexpr char key_DOWN  = 0x42;
+    constexpr char key_Q     = 0x71;
+    constexpr char key_SPACE = 0x20;
 
     DIR dir = DIR::STOP;
     bool isSkip = false;
     switch(key) {
-      case keyL:     { dir = DIR::LEFT;     break; }
-      case keyU:     { dir = DIR::FORWARD;  break; }
-      case keyD:     { dir = DIR::BACKWARD; break; }
-      case keyR:     { dir = DIR::RIGHT;    break; }
-      case keySpace: { dir = DIR::STOP;     break; }
-      case keyQ:     { isQuit = true;       break; }
-      default:       { isSkip = true;       break; }
+      case key_LEFT:  { dir = DIR::LEFT;     break; }
+      case key_UP:    { dir = DIR::FORWARD;  break; }
+      case key_DOWN:  { dir = DIR::BACKWARD; break; }
+      case key_RIGHT: { dir = DIR::RIGHT;    break; }
+      case key_SPACE: { dir = DIR::STOP;     break; }
+      case key_Q:     { isQuit = true;       break; }
+      default:        { isSkip = true;       break; }
     }
     if (isQuit) { break; }
     if (isSkip) { continue; }
@@ -118,13 +125,18 @@ void CLI::runDirectMode() try {
     RCLCPP_DEBUG_STREAM(get_logger(), magic_enum::enum_name(dir));
     changeDirection(dir);
     lastKey = key;
+    key = 0;
   }
-  changeDirection(DIR::STOP);
   restoreConsoleMode();
-} catch(const std::exception& e) {
   changeDirection(DIR::STOP);
+} catch(const std::exception& e1) {
   restoreConsoleMode();
-  throw Domabot::Exception::BackTrack(e);
+  try {
+    changeDirection(DIR::STOP);
+  } catch(const std::exception& e2) {
+    throw Domabot::Exception::BackTrackMsg(e2, e1.what());
+  }
+  throw Domabot::Exception::BackTrack(e1);
 }
 
 void CLI::runCLI() try {

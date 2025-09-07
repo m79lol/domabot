@@ -25,14 +25,6 @@ Controller::Controller() try : Node("domabot_controller") {
     , std::bind(&Controller::init, this)
   );
 
-  /*try {
-    init();
-  } catch (const std::exception& e) {
-    RCLCPP_WARN_STREAM(
-        get_logger()
-      , "Unsuccess first init. Try init later...");
-  };*/
-
   m_pubStatus = create_publisher<DI::msg::Status>(
     m_statusTopicName, 1);
 
@@ -141,21 +133,23 @@ void Controller::init() try {
   const MODE currentMode = checkMode(holdingRegs.at(REG_HLD::MODE), true);
 
   m_currentMode.store(currentMode, std::memory_order_relaxed);
-  m_isMotorsEnabled.store(
-    m_modbus->readCoil(COIL::ENBL), std::memory_order_relaxed);
+  const bool isMotorsEnabled = m_modbus->readCoil(COIL::ENBL);
+  m_isMotorsEnabled.store(isMotorsEnabled, std::memory_order_relaxed);
 
-  switch (currentMode) {
-    case MODE::TRG: {
-      runCommand(CMD::BRAKE);
-      break;
+  if (isMotorsEnabled) {
+    switch (currentMode) {
+      case MODE::TRG: {
+        runCommand(CMD::BRAKE);
+        break;
+      }
+      case MODE::DRCT: {
+        m_modbus->writeHoldingRegister(REG_HLD::DIR, (uint16_t) DIR::STOP);
+        runCommand(CMD::DIR);
+        break;
+      }
+      case MODE::WRD: { break; }
+      default:        { break; }
     }
-    case MODE::DRCT: {
-      m_modbus->writeHoldingRegister(REG_HLD::DIR, (uint16_t) DIR::STOP);
-      runCommand(CMD::DIR);
-      break;
-    }
-    case MODE::WRD: { break; }
-    default:        { break; }
   }
 
   restartStatusTimer(holdingRegs.at(REG_HLD::RATE));
@@ -221,7 +215,7 @@ void Controller::checkEnabledMotors() const {
 }
 
 void Controller::checkMoving() const {
-  if (!m_isMoving.load(std::memory_order_acquire)) {
+  if (m_isMoving.load(std::memory_order_acquire)) {
     throw Exception::createError(
         "Require full stop!");
   }
@@ -361,6 +355,9 @@ void Controller::enableMotorsSrvCallback(
   m_modbus->writeCoil(COIL::ENBL, req->enable_motors);
   processRequestCommand<DI::srv::EnableMotors>(res, CMD::ENBL);
   m_isMotorsEnabled.store(req->enable_motors, std::memory_order_relaxed);
+  if (req->enable_motors) {
+    runCommand(CMD::BRAKE);
+  }
 } catch (const std::exception& e) {
   processExceptionCommand<DI::srv::EnableMotors>(res, e);
 }
@@ -433,7 +430,7 @@ void Controller::getDataSrvCallback(
   stepper_right.is_forward      .push_back(holdingRegs.at(REG_HLD::IS_FROWARD_R));
   settings.stepper_right.push_back(stepper_right);
 
-  checkStatus(inputRegs.at(REG_INP::STS), false);
+  checkStatus(inputRegs.at(REG_INP::STS), true);
 
   checkCommand(holdingRegs.at(REG_HLD::CMD));
   checkMode(holdingRegs.at(REG_HLD::MODE), true);
@@ -501,7 +498,6 @@ void Controller::setDirectionSrvCallback(
   checkDirection(req->direction.direction);
   checkAllowedMode(MODE::DRCT);
   checkEnabledMotors();
-  checkMoving();
 
   m_modbus->writeHoldingRegister(REG_HLD::DIR, req->direction.direction);
 

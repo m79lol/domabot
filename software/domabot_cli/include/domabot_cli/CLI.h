@@ -68,8 +68,7 @@ class CLI : public rclcpp::Node {
     std::mutex m_mtxLastStatus;
 
     bool isDirectMode = false;
-    int m_kfd = 0;
-    struct termios m_cooked, m_raw;
+    struct termios m_cooked;
 
     /**
      * @brief Get printable name of enum item.

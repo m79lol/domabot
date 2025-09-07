@@ -82,7 +82,7 @@ Modbus::~Modbus() noexcept {
 void Modbus::runModbusOperation(
   std::function<bool (modbus_t*)> operation
 ) try {
-  const std::lock_guard<std::mutex> lock(m_mtx);
+  std::unique_lock<std::mutex> lock(m_mtx);
 
   unsigned int attempts = 2;
   while(attempts--) {
@@ -95,9 +95,14 @@ void Modbus::runModbusOperation(
         }
         rclcpp::Rate(m_connectDelay).sleep();
         m_isConnected = true;
+        if (attempts) {
+          --attempts;
+        }
         RCLCPP_INFO_STREAM(m_logger, "Reconnected.");
         if (m_connectCallback) {
+          lock.unlock();
           m_connectCallback();
+          lock.lock();
         }
       }
       if (!operation(m_cntx)) {
